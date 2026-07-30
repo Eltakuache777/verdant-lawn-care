@@ -1,0 +1,83 @@
+// Real database schema for Greenline.
+// Run `npm run db:push` after setting DATABASE_URL to create these tables for real.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Owner-editable "starting at" prices, shown on the Book page and used by the estimators.
+model Service {
+  id        String   @id @default(cuid())
+  name      String   @unique // "Mowing", "Tree Trimming", "Landscaping Project", "Fence Building", "Pressure Washing"
+  basePrice Float
+  updatedAt DateTime @updatedAt
+}
+
+// Owner-maintained material prices (sod, trees, rocks, bricks, etc.) — no public
+// API exists for real Lowe's/Home Depot pricing, so these are entered by hand.
+model Material {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  unit      String // "sq ft", "each", "ton", "cu yd", etc.
+  price     Float
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  phone     String?
+  createdAt DateTime  @default(now())
+  bookings  Booking[]
+  quotes    QuoteRequest[]
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  customer      Customer @relation(fields: [customerId], references: [id])
+  customerId    String
+  services      String[] @default([]) // service names at time of booking (customers can pick more than one)
+  planFrequency String? // customer's requested cadence: weekly | biweekly | monthly | one_time (informational — no recurring billing yet)
+  address       String
+  scheduledFor  DateTime
+  isEmergency   Boolean  @default(false)
+  emergencyFee  Float    @default(0)
+  basePrice     Float
+  totalPrice    Float
+  status        String   @default("pending") // pending | confirmed | completed | cancelled
+  createdAt     DateTime @default(now())
+}
+
+// A customer's request for an AI design concept package (the $50/$70/$120 tiers).
+model QuoteRequest {
+  id            String   @id @default(cuid())
+  customer      Customer @relation(fields: [customerId], references: [id])
+  customerId    String
+  tier          String   // "standard" | "better" | "highest"
+  amountPaid    Float
+  conceptCount  Int
+  photoUrls     String[] @default([]) // reference photos/videos of the project idea
+  description   String?
+  conceptUrls   String[] @default([]) // AI-generated design concept image URLs
+  chosenConcept String?
+  status        String   @default("awaiting_payment") // awaiting_payment | paid | generating | generated | quoted | closed
+  stripeSessionId String?
+  createdAt     DateTime @default(now())
+}
+
+// A single private message in a customer <-> admin conversation, grouped by customerEmail.
+model ChatMessage {
+  id              String   @id @default(cuid())
+  customerEmail   String
+  customerName    String
+  sender          String   // "customer" | "admin"
+  body            String
+  attachmentUrls  String[] @default([]) // photos/videos of a project idea attached to a quote request
+  createdAt       DateTime @default(now())
+}
