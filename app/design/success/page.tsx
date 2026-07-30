@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type QuoteRequest = {
@@ -10,7 +10,7 @@ type QuoteRequest = {
   tier: string;
 };
 
-export default function DesignSuccessPage() {
+function DesignSuccessContent() {
   const searchParams = useSearchParams();
   const quoteRequestId = searchParams.get("qr");
   const [quote, setQuote] = useState<QuoteRequest | null>(null);
@@ -81,5 +81,23 @@ export default function DesignSuccessPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function DesignSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main>
+          <div className="card">
+            <p className="brand-label">Verdant Lawn Care</p>
+            <h1>Your design concepts</h1>
+            <p style={{ color: "var(--text-muted)" }}>Loading...</p>
+          </div>
+        </main>
+      }
+    >
+      <DesignSuccessContent />
+    </Suspense>
   );
 }

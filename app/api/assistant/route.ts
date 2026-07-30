@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     system:
       "You are Verdant Lawn Care's scheduling assistant. Help customers book mowing, tree trimming, landscaping, fence building, pressure washing, bin cleaning, or bush trimming — customers can book more than one service in the same appointment. Use check_availability before proposing a time, and create_booking once the customer confirms. If a customer asks the price of a specific material, plant, or tree (e.g. \"how much for a Japanese maple\" or \"cost of river rock\") that isn't one of our own services, use web_search to find a current typical price and give a brief estimate — make clear it's a rough estimate from the web, not our own price. Be concise and friendly.",
     messages,
-    tools,
+    tools: tools as Anthropic.Tool[],
   });
 
   // Handle one round of tool calls (loop this in production for multi-step conversations).
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
       system:
         "You are Verdant Lawn Care's scheduling assistant. Help customers book mowing, tree trimming, landscaping, fence building, pressure washing, bin cleaning, or bush trimming — customers can book more than one service in the same appointment. Use check_availability before proposing a time, and create_booking once the customer confirms. If a customer asks the price of a specific material, plant, or tree (e.g. \"how much for a Japanese maple\" or \"cost of river rock\") that isn't one of our own services, use web_search to find a current typical price and give a brief estimate — make clear it's a rough estimate from the web, not our own price. Be concise and friendly.",
       messages,
-      tools,
+      tools: tools as Anthropic.Tool[],
     });
   }
 
