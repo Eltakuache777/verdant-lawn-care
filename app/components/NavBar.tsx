@@ -1,5 +1,7 @@
 "use client";
+import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
+import { useChat } from "./ChatContext";
 import { LANGUAGES } from "@/lib/i18n";
 
 function Logo() {
@@ -13,13 +15,18 @@ function Logo() {
 
 export default function NavBar() {
   const { lang, setLang, t } = useLanguage();
+  const { toggle } = useChat();
+  const pathname = usePathname();
+  const showChat = !pathname?.startsWith("/admin");
 
   return (
     <nav
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 20,
+        flexWrap: "wrap",
+        rowGap: 10,
+        columnGap: 20,
         padding: "16px 24px",
         background: "var(--bg-elevated)",
         borderBottom: "1px solid var(--border)",
@@ -50,17 +57,52 @@ export default function NavBar() {
       <a href="/estimate/pressure" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navPressure")}
       </a>
+      {showChat && (
+        <button
+          type="button"
+          onClick={toggle}
+          style={{
+            background: "transparent",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+            fontSize: 16,
+            padding: 0,
+          }}
+        >
+          💬 {t("chatButtonAria")}
+        </button>
+      )}
       <a href="/materials" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navMaterials")}
       </a>
       <a href="/design" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navDesign")}
       </a>
-      <a href="/worker" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-        {t("navWorker")}
+
+      <a
+        href="/login?mode=signup"
+        style={{
+          marginLeft: "auto",
+          color: "var(--text-muted)",
+          textDecoration: "none",
+          fontSize: 14,
+        }}
+      >
+        {t("navSignUp")}
       </a>
-      <a href="/admin" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-        {t("navAdmin")}
+      <a
+        href="/login"
+        style={{
+          color: "#06130c",
+          background: "var(--accent)",
+          textDecoration: "none",
+          fontSize: 14,
+          fontWeight: 700,
+          padding: "8px 14px",
+          borderRadius: 6,
+        }}
+      >
+        {t("navLogIn")}
       </a>
 
       <select
@@ -68,7 +110,6 @@ export default function NavBar() {
         onChange={(e) => setLang(e.target.value as "en" | "es")}
         aria-label="Language"
         style={{
-          marginLeft: "auto",
           width: "auto",
           marginBottom: 0,
           padding: "6px 10px",

@@ -2,6 +2,7 @@ import "./globals.css";
 import ChatWidget from "./components/ChatWidget";
 import NavBar from "./components/NavBar";
 import { LanguageProvider } from "./components/LanguageProvider";
+import { ChatProvider } from "./components/ChatContext";
 
 export const metadata = {
   title: "Verdant Lawn Care — Your lawn, handled.",
@@ -13,9 +14,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <LanguageProvider>
-          <NavBar />
-          {children}
-          <ChatWidget />
+          <ChatProvider>
+            <NavBar />
+            {children}
+            <ChatWidget />
+          </ChatProvider>
         </LanguageProvider>
       </body>
     </html>

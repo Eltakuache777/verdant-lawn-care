@@ -1,57 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseWorkerAccounts } from "@/lib/workerAccounts";
-
-// Uses HTTP Basic Auth — the browser handles the login prompt natively, no custom login page needed.
-function credentialsFrom(req: NextRequest): { username: string; password: string } | null {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Basic ")) return null;
-  const decoded = atob(auth.slice(6));
-  const i = decoded.indexOf(":");
-  if (i === -1) return null;
-  return { username: decoded.slice(0, i), password: decoded.slice(i + 1) };
-}
-
-function isAdminAuthorized(req: NextRequest): boolean {
-  const creds = credentialsFrom(req);
-  if (!creds) return false;
-  const expectedUsername = process.env.ADMIN_USERNAME || "admin";
-  const expectedPassword = process.env.ADMIN_PASSWORD;
-  if (!expectedPassword) return false; // fail closed if it's never been configured
-  return creds.username === expectedUsername && creds.password === expectedPassword;
-}
-
-// Workers each get their own username/password (see WORKER_ACCOUNTS above),
-// so you don't have to hand out one shared login. Your admin login also
-// works here, so you can preview the worker view yourself.
-function isWorkerAuthorized(req: NextRequest): boolean {
-  const creds = credentialsFrom(req);
-  if (!creds) return false;
-  if (isAdminAuthorized(req)) return true;
-  const account = parseWorkerAccounts(process.env.WORKER_ACCOUNTS).find((a) => a.username === creds.username);
-  return !!account && account.password === creds.password;
-}
+import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 
 // Endpoints only the owner can use — editing prices, sending chat replies,
-// recording/viewing money (reports, payment amounts are enforced inside the
-// booking route itself since that route also allows worker access for the
-// "mark completed" action).
+// recording/viewing money, managing worker accounts, free AI design generation.
 const ADMIN_ONLY_PATHS = new Set([
   "/admin",
   "/api/chat/reply",
   "/api/reports",
   "/api/reports/worker-payments",
   "/api/design/admin-generate",
+  "/api/workers",
 ]);
 // Endpoints workers can view too (same data the owner sees, read-only) — plus
 // marking a job completed, which is a write action both roles can do.
 const SHARED_READ_PATHS = new Set(["/worker", "/api/bookings", "/api/chat/threads"]);
 
-export function middleware(req: NextRequest) {
+async function roleOf(req: NextRequest) {
+  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+  return session?.role ?? null;
+}
+
+export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const m = req.method;
+  const isPage = path === "/admin" || path === "/worker";
 
   const isAdminOnly =
     ADMIN_ONLY_PATHS.has(path) ||
+    path.startsWith("/api/workers/") ||
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT");
   const isSharedAccess =
@@ -59,19 +35,17 @@ export function middleware(req: NextRequest) {
     (path.startsWith("/api/bookings/") && m === "PATCH");
 
   if (isAdminOnly) {
-    if (isAdminAuthorized(req)) return NextResponse.next();
-    return new NextResponse("Authentication required", {
-      status: 401,
-      headers: { "WWW-Authenticate": 'Basic realm="Greenline Admin"' },
-    });
+    const role = await roleOf(req);
+    if (role === "admin") return NextResponse.next();
+    if (isPage) return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (isSharedAccess) {
-    if (isWorkerAuthorized(req)) return NextResponse.next();
-    return new NextResponse("Authentication required", {
-      status: 401,
-      headers: { "WWW-Authenticate": 'Basic realm="Greenline"' },
-    });
+    const role = await roleOf(req);
+    if (role === "admin" || role === "worker") return NextResponse.next();
+    if (isPage) return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   return NextResponse.next();
@@ -90,5 +64,7 @@ export const config = {
     "/api/reports",
     "/api/reports/worker-payments",
     "/api/design/admin-generate",
+    "/api/workers",
+    "/api/workers/:id",
   ],
 };

@@ -12,8 +12,8 @@ const PatchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const admin = isAdminRequest(req);
-  const worker = isWorkerRequest(req);
+  const admin = await isAdminRequest(req);
+  const worker = await isWorkerRequest(req);
   if (!admin && !worker) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -60,11 +60,33 @@ model Booking {
 // specific jobs (workers aren't assigned to individual bookings in this app).
 model WorkerPayment {
   id             String   @id @default(cuid())
-  workerUsername String
+  workerEmail    String
   workerName     String
   amount         Float
   note           String?
   paidAt         DateTime @default(now())
+}
+
+// Someone the owner has granted worker (read-only dashboard) access to.
+// Logging in is by email + one-time code, not a static password.
+model Worker {
+  id      String   @id @default(cuid())
+  email   String   @unique
+  name    String?
+  addedAt DateTime @default(now())
+}
+
+// A one-time login code emailed to someone (customer, worker, or the owner)
+// so they can sign in without a password. Expires 10 minutes after creation.
+model LoginCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email, code])
 }
 
 // A customer's request for an AI design concept package (the $50/$70/$120 tiers).

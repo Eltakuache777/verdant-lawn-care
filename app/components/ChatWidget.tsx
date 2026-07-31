@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
+import { useChat } from "./ChatContext";
 
 type Msg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
 
@@ -12,7 +13,7 @@ function isVideoUrl(url: string) {
 export default function ChatWidget() {
   const pathname = usePathname();
   const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = useChat();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [identified, setIdentified] = useState(false);
@@ -104,33 +105,11 @@ export default function ChatWidget() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          position: "fixed",
-          bottom: 20,
-          right: 20,
-          borderRadius: "50%",
-          width: 56,
-          height: 56,
-          background: "var(--accent)",
-          color: "#06130c",
-          border: "none",
-          fontSize: 24,
-          cursor: "pointer",
-          zIndex: 1000,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-        }}
-        aria-label={t("chatButtonAria")}
-      >
-        {open ? "✕" : "💬"}
-      </button>
-
       {open && (
         <div
           style={{
             position: "fixed",
-            bottom: 88,
+            top: 76,
             right: 20,
             width: 320,
             maxHeight: 440,
@@ -141,10 +120,28 @@ export default function ChatWidget() {
             flexDirection: "column",
             zIndex: 1000,
             overflow: "hidden",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
           }}
         >
-          <div style={{ padding: 12, borderBottom: "1px solid var(--border)", fontWeight: 700 }}>
+          <div
+            style={{
+              padding: 12,
+              borderBottom: "1px solid var(--border)",
+              fontWeight: 700,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             {t("chatTitle")}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              style={{ background: "transparent", color: "var(--text-muted)", padding: "2px 6px", fontWeight: 700 }}
+            >
+              ✕
+            </button>
           </div>
 
           {!identified ? (

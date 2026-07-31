@@ -1,21 +1,9 @@
-import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import AdminShell from "@/app/components/AdminShell";
-import { parseWorkerAccounts } from "@/lib/workerAccounts";
+import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 
-function currentUserName(): string | undefined {
-  const auth = headers().get("authorization");
-  if (!auth?.startsWith("Basic ")) return undefined;
-  const decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
-  const i = decoded.indexOf(":");
-  if (i === -1) return undefined;
-  const username = decoded.slice(0, i);
-
-  const account = parseWorkerAccounts(process.env.WORKER_ACCOUNTS).find((a) => a.username === username);
-  if (account) return account.name;
-  if (username === (process.env.ADMIN_USERNAME || "admin")) return "Admin (preview)";
-  return username;
-}
-
-export default function WorkerPage() {
-  return <AdminShell readOnly loggedInAs={currentUserName()} />;
+export default async function WorkerPage() {
+  const session = await verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
+  const loggedInAs = session?.role === "admin" ? "Admin (preview)" : session?.name || session?.email;
+  return <AdminShell readOnly loggedInAs={loggedInAs} />;
 }

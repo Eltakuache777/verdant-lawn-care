@@ -21,7 +21,7 @@ type ReportData = {
   totalRevenue: number;
   totalPaidToWorkers: number;
   net: number;
-  workerPayments: { id: string; workerUsername: string; workerName: string; amount: number; note: string | null; paidAt: string }[];
+  workerPayments: { id: string; workerEmail: string; workerName: string; amount: number; note: string | null; paidAt: string }[];
 };
 type Thread = {
   customerEmail: string;
@@ -31,18 +31,12 @@ type Thread = {
   lastAt: string;
 };
 type ChatMsg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
-type View = "schedule" | "messages" | "prices" | "reports" | "design";
+type WorkerRow = { id: string; email: string; name: string | null; addedAt: string };
+type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers";
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
 }
-
-const KNOWN_WORKERS = [
-  { username: "david", name: "David Alexander Olguin Martinez" },
-  { username: "bryan", name: "Bryan David Castelan" },
-  { username: "marcio", name: "Marcio" },
-  { username: "verdantworker", name: "Worker (generic login)" },
-];
 
 const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "schedule", icon: "📅", label: "Schedule" },
@@ -50,8 +44,9 @@ const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "prices", icon: "💲", label: "Prices" },
   { key: "reports", icon: "📊", label: "Reports" },
   { key: "design", icon: "🎨", label: "Design" },
+  { key: "workers", icon: "👥", label: "Workers" },
 ];
-const ADMIN_ONLY_VIEWS: View[] = ["reports", "design"];
+const ADMIN_ONLY_VIEWS: View[] = ["reports", "design", "workers"];
 
 // Shared by /admin (full control) and /worker (same view, everything disabled
 // via readOnly — workers can see the whole schedule, all messages, and every
@@ -78,10 +73,18 @@ export default function AdminShell({
 
   const [report, setReport] = useState<ReportData | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [wpWorkerUsername, setWpWorkerUsername] = useState(KNOWN_WORKERS[0].username);
+  const [wpWorkerEmail, setWpWorkerEmail] = useState("");
   const [wpAmount, setWpAmount] = useState("");
   const [wpNote, setWpNote] = useState("");
   const [wpSubmitting, setWpSubmitting] = useState(false);
+
+  // Worker (employee) accounts management — add/remove by email.
+  const [workers, setWorkers] = useState<WorkerRow[]>([]);
+  const [workersError, setWorkersError] = useState<string | null>(null);
+  const [newWorkerEmail, setNewWorkerEmail] = useState("");
+  const [newWorkerName, setNewWorkerName] = useState("");
+  const [addingWorker, setAddingWorker] = useState(false);
+  const [addWorkerStatus, setAddWorkerStatus] = useState<string | null>(null);
 
   // Free AI design generation for the owner — always the highest tier, no Stripe checkout.
   const [designName, setDesignName] = useState("");
@@ -120,7 +123,10 @@ export default function AdminShell({
       .catch(() => setBookingsError("Could not load the schedule."));
 
     loadThreads();
-    if (!readOnly) loadReport();
+    if (!readOnly) {
+      loadReport();
+      loadWorkers();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -132,6 +138,53 @@ export default function AdminShell({
       })
       .then(setReport)
       .catch(() => setReportError("Could not load earnings report."));
+  }
+
+  function loadWorkers() {
+    fetch("/api/workers")
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load workers");
+        return r.json();
+      })
+      .then((data: WorkerRow[]) => {
+        setWorkers(data);
+        if (!wpWorkerEmail && data.length > 0) setWpWorkerEmail(data[0].email);
+      })
+      .catch(() => setWorkersError("Could not load workers."));
+  }
+
+  async function addWorker(e: React.FormEvent) {
+    e.preventDefault();
+    setAddWorkerStatus(null);
+    setAddingWorker(true);
+    try {
+      const res = await fetch("/api/workers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newWorkerEmail.trim(), name: newWorkerName.trim() || undefined }),
+      });
+      if (res.ok) {
+        setAddWorkerStatus(`✓ Login code sent to ${newWorkerEmail.trim()}`);
+        setNewWorkerEmail("");
+        setNewWorkerName("");
+        loadWorkers();
+      } else {
+        const err = await res.json();
+        setAddWorkerStatus(err.error ? JSON.stringify(err.error) : "Could not add worker.");
+      }
+    } finally {
+      setAddingWorker(false);
+    }
+  }
+
+  async function removeWorker(id: string) {
+    const res = await fetch(`/api/workers/${id}`, { method: "DELETE" });
+    if (res.ok) loadWorkers();
+  }
+
+  async function logOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
   }
 
   async function markCompleted(id: string) {
@@ -170,13 +223,13 @@ export default function AdminShell({
   async function submitWorkerPayment(e: React.FormEvent) {
     e.preventDefault();
     const amount = parseFloat(wpAmount);
-    if (isNaN(amount) || amount <= 0) return;
+    if (isNaN(amount) || amount <= 0 || !wpWorkerEmail) return;
     setWpSubmitting(true);
     try {
       const res = await fetch("/api/reports/worker-payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workerUsername: wpWorkerUsername, amount, note: wpNote.trim() || undefined }),
+        body: JSON.stringify({ workerEmail: wpWorkerEmail, amount, note: wpNote.trim() || undefined }),
       });
       if (res.ok) {
         setWpAmount("");
@@ -385,21 +438,35 @@ export default function AdminShell({
       </div>
 
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {loggedInAs && (
-          <div
-            style={{
-              padding: "8px 20px",
-              borderBottom: "1px solid var(--border)",
-              fontSize: 12,
-              color: "var(--text-muted)",
-              background: "var(--bg-elevated)",
-              flexShrink: 0,
-            }}
+        <div
+          style={{
+            padding: "8px 20px",
+            borderBottom: "1px solid var(--border)",
+            fontSize: 12,
+            color: "var(--text-muted)",
+            background: "var(--bg-elevated)",
+            flexShrink: 0,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>
+            {loggedInAs && (
+              <>
+                Viewing as <strong style={{ color: "var(--text)" }}>{loggedInAs}</strong>
+                {readOnly && " — read only"}
+              </>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={logOut}
+            style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 400, fontSize: 12, padding: "4px 8px" }}
           >
-            Viewing as <strong style={{ color: "var(--text)" }}>{loggedInAs}</strong>
-            {readOnly && " — read only"}
-          </div>
-        )}
+            Log out
+          </button>
+        </div>
         <div style={{ flex: 1, overflow: "hidden" }}>
           {view === "schedule" && (
           <div style={{ display: "flex", height: "100%" }}>
@@ -789,13 +856,17 @@ export default function AdminShell({
               <form onSubmit={submitWorkerPayment} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 160px" }}>
                   <label>Worker</label>
-                  <select value={wpWorkerUsername} onChange={(e) => setWpWorkerUsername(e.target.value)}>
-                    {KNOWN_WORKERS.map((w) => (
-                      <option key={w.username} value={w.username}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
+                  {workers.length === 0 ? (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Add a worker first.</p>
+                  ) : (
+                    <select value={wpWorkerEmail} onChange={(e) => setWpWorkerEmail(e.target.value)}>
+                      {workers.map((w) => (
+                        <option key={w.id} value={w.email}>
+                          {w.name || w.email}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div style={{ flex: "0 1 120px" }}>
                   <label>Amount</label>
@@ -812,7 +883,7 @@ export default function AdminShell({
                   <label>Note (optional)</label>
                   <input value={wpNote} onChange={(e) => setWpNote(e.target.value)} placeholder="e.g. week of July 28" />
                 </div>
-                <button type="submit" disabled={wpSubmitting} style={{ marginBottom: 14 }}>
+                <button type="submit" disabled={wpSubmitting || workers.length === 0} style={{ marginBottom: 14 }}>
                   {wpSubmitting ? "Adding..." : "Log payment"}
                 </button>
               </form>
@@ -900,6 +971,72 @@ export default function AdminShell({
                   {designSubmitting ? "Generating..." : "Generate free designs"}
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {view === "workers" && !readOnly && (
+          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+            <div className="card" style={{ margin: 0 }}>
+              <h1>Manage workers</h1>
+              <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
+                Add anyone by their email — they'll get a login code to sign in at /worker. Remove them
+                any time to end their access immediately.
+              </p>
+
+              <form onSubmit={addWorker} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    value={newWorkerEmail}
+                    onChange={(e) => setNewWorkerEmail(e.target.value)}
+                    placeholder="worker@example.com"
+                    required
+                  />
+                </div>
+                <div style={{ flex: "1 1 160px" }}>
+                  <label>Name (optional)</label>
+                  <input value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} placeholder="Their name" />
+                </div>
+                <button type="submit" disabled={addingWorker} style={{ marginBottom: 14 }}>
+                  {addingWorker ? "Adding..." : "Add & send code"}
+                </button>
+              </form>
+              {addWorkerStatus && <p className="accent">{addWorkerStatus}</p>}
+              {workersError && <p>{workersError}</p>}
+
+              <div style={{ marginTop: 16 }}>
+                {workers.length === 0 && <p style={{ color: "var(--text-muted)" }}>No workers yet.</p>}
+                {workers.map((w) => (
+                  <div
+                    key={w.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700 }}>{w.name || w.email}</p>
+                      {w.name && (
+                        <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{w.email}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeWorker(w.id)}
+                      style={{ background: "transparent", color: "var(--gold)", fontWeight: 600, fontSize: 13 }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
