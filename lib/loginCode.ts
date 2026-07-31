@@ -33,10 +33,10 @@ export async function sendLoginCode(rawEmail: string): Promise<void> {
 
   await sgMail.send({
     to: email,
-    from: fromEmail,
-    subject: `Your Verdant Lawn Care login code: ${code}`,
-    text: `Your login code is ${code}. It expires in ${CODE_TTL_MINUTES} minutes.`,
-    html: `<p>Your login code is <strong style="font-size:20px">${code}</strong>.</p><p>It expires in ${CODE_TTL_MINUTES} minutes.</p>`,
+    from: { email: fromEmail, name: "Verdant Lawn Care" },
+    subject: "Your Verdant Lawn Care sign-in code",
+    text: `Here's your one-time sign-in code for Verdant Lawn Care:\n\n${code}\n\nIt expires in ${CODE_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.`,
+    html: `<p>Here's your one-time sign-in code for Verdant Lawn Care:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in ${CODE_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.</p>`,
   });
 }
 
