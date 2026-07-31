@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/googleMaps";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
+import { useLanguage } from "./components/LanguageProvider";
 
 type ServiceRow = { name: string; basePrice: number };
 type PlanKey = "weekly" | "biweekly" | "monthly" | "one_time";
@@ -11,28 +12,35 @@ type FenceEstimate = { lengthFt: number; material: string; total: number };
 type PressureLineItem = { key: string; sqft: number; rate: number; cost: number };
 type PressureEstimate = { lineItems: PressureLineItem[]; total: number };
 
-const FENCE_MATERIALS = [
-  { value: "chain_link", label: "Chain Link" },
-  { value: "wood", label: "Wood" },
-  { value: "vinyl", label: "Vinyl" },
-];
-const PRESSURE_SURFACES = [
-  { key: "driveway", label: "Driveway" },
-  { key: "siding", label: "Siding" },
-  { key: "patio", label: "Patio" },
-  { key: "fence_wash", label: "Fence" },
-];
-
-const RECURRING_PLANS: { key: PlanKey; label: string; note: string; basePrice: number; badge?: string }[] = [
-  { key: "weekly", label: "Weekly", note: "Always sharp, free priority slot", basePrice: 40, badge: "BEST VALUE" },
-  { key: "biweekly", label: "Bi-Weekly", note: "Every other week, most popular", basePrice: 50 },
-];
-const AS_NEEDED_PLANS: { key: PlanKey; label: string; note: string; basePrice: number }[] = [
-  { key: "monthly", label: "Monthly", note: "Low-maintenance lots", basePrice: 85 },
-  { key: "one_time", label: "One-Time", note: "No commitment, no slot held", basePrice: 100 },
-];
+const WEEKDAY_LETTERS: Record<"en" | "es", string[]> = {
+  en: ["S", "M", "T", "W", "T", "F", "S"],
+  es: ["D", "L", "M", "M", "J", "V", "S"],
+};
 
 export default function BookPage() {
+  const { t, lang } = useLanguage();
+  const dateLocale = lang === "es" ? "es-ES" : "en-US";
+
+  const FENCE_MATERIALS = [
+    { value: "chain_link", label: t("materialChainLink") },
+    { value: "wood", label: t("materialWood") },
+    { value: "vinyl", label: t("materialVinyl") },
+  ];
+  const PRESSURE_SURFACES = [
+    { key: "driveway", label: t("surfaceDriveway") },
+    { key: "siding", label: t("surfaceSiding") },
+    { key: "patio", label: t("surfacePatio") },
+    { key: "fence_wash", label: t("surfaceFence") },
+  ];
+  const RECURRING_PLANS: { key: PlanKey; label: string; note: string; basePrice: number; badge?: string }[] = [
+    { key: "weekly", label: t("planWeeklyLabel"), note: t("planWeeklyNote"), basePrice: 40, badge: t("planWeeklyBadge") },
+    { key: "biweekly", label: t("planBiweeklyLabel"), note: t("planBiweeklyNote"), basePrice: 50 },
+  ];
+  const AS_NEEDED_PLANS: { key: PlanKey; label: string; note: string; basePrice: number }[] = [
+    { key: "monthly", label: t("planMonthlyLabel"), note: t("planMonthlyNote"), basePrice: 85 },
+    { key: "one_time", label: t("planOneTimeLabel"), note: t("planOneTimeNote"), basePrice: 100 },
+  ];
+
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [name, setName] = useState("");
@@ -121,7 +129,7 @@ export default function BookPage() {
 
   async function getLawnEstimate() {
     if (!address) {
-      setMapError("Enter your address first.");
+      setMapError(t("enterAddressFirst"));
       return;
     }
     setMapError(null);
@@ -135,19 +143,19 @@ export default function BookPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMapError(data.error ?? "Could not locate that address.");
+        setMapError(data.error ?? t("couldNotLocate"));
         return;
       }
       setShowMap(true);
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        setMapError("Google Maps isn't configured yet.");
+        setMapError(t("mapsNotConfigured"));
         return;
       }
       await loadGoogleMaps(apiKey);
       initMap(data.location);
     } catch {
-      setMapError("Something went wrong loading the map.");
+      setMapError(t("somethingWentWrong"));
     } finally {
       setMapLoading(false);
     }
@@ -184,7 +192,7 @@ export default function BookPage() {
     const google = window.google;
     const polygon = polygonRef.current;
     if (!polygon || polygon.getPath().getLength() < 3) {
-      setMapError("Click at least 3 points to outline your lawn.");
+      setMapError(t("clickAtLeast3"));
       return;
     }
     const areaSqM = google.maps.geometry.spherical.computeArea(polygon.getPath());
@@ -217,13 +225,13 @@ export default function BookPage() {
         needsManualQuote: data.needsManualQuote,
       });
     } else {
-      setMapError(data.error ?? "Could not price that lawn.");
+      setMapError(data.error ?? t("couldNotPriceLawn"));
     }
   }
 
   async function measureFenceLine() {
     if (!address) {
-      setFenceMapError("Enter your address first.");
+      setFenceMapError(t("enterAddressFirst"));
       return;
     }
     setFenceMapError(null);
@@ -237,19 +245,19 @@ export default function BookPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setFenceMapError(data.error ?? "Could not locate that address.");
+        setFenceMapError(data.error ?? t("couldNotLocate"));
         return;
       }
       setShowFenceMap(true);
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        setFenceMapError("Google Maps isn't configured yet.");
+        setFenceMapError(t("mapsNotConfigured"));
         return;
       }
       await loadGoogleMaps(apiKey);
       initFenceMap(data.location);
     } catch {
-      setFenceMapError("Something went wrong loading the map.");
+      setFenceMapError(t("somethingWentWrong"));
     } finally {
       setFenceMapLoading(false);
     }
@@ -284,7 +292,7 @@ export default function BookPage() {
     const google = window.google;
     const polyline = fencePolylineRef.current;
     if (!polyline || polyline.getPath().getLength() < 2) {
-      setFenceMapError("Click at least 2 points to trace the fence line.");
+      setFenceMapError(t("clickAtLeast2Fence"));
       return;
     }
     const lengthM = google.maps.geometry.spherical.computeLength(polyline.getPath());
@@ -298,7 +306,7 @@ export default function BookPage() {
     if (res.ok) {
       setFenceEstimate({ lengthFt, material: fenceMaterial, total: data.total });
     } else {
-      setFenceMapError(data.error ?? "Could not price that fence line.");
+      setFenceMapError(data.error ?? t("couldNotPriceFence"));
     }
   }
 
@@ -310,7 +318,7 @@ export default function BookPage() {
 
   async function measurePressureSurface(key: string) {
     if (!address) {
-      setPressureMapError("Enter your address first.");
+      setPressureMapError(t("enterAddressFirst"));
       return;
     }
     setPressureMapError(null);
@@ -324,21 +332,21 @@ export default function BookPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setPressureMapError(data.error ?? "Could not locate that address.");
+          setPressureMapError(data.error ?? t("couldNotLocate"));
           return;
         }
         pressureLocationRef.current = data.location;
       }
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        setPressureMapError("Google Maps isn't configured yet.");
+        setPressureMapError(t("mapsNotConfigured"));
         return;
       }
       await loadGoogleMaps(apiKey);
       setPressurePointCount(0);
       setActivePressureSurface(key);
     } catch {
-      setPressureMapError("Something went wrong loading the map.");
+      setPressureMapError(t("somethingWentWrong"));
     } finally {
       setPressureMapLoading(false);
     }
@@ -376,7 +384,7 @@ export default function BookPage() {
     const google = window.google;
     const polygon = pressurePolygonRef.current;
     if (!polygon || polygon.getPath().getLength() < 3 || !activePressureSurface) {
-      setPressureMapError("Click at least 3 points to outline the surface.");
+      setPressureMapError(t("clickAtLeast3Surface"));
       return;
     }
     const areaSqM = google.maps.geometry.spherical.computeArea(polygon.getPath());
@@ -402,7 +410,7 @@ export default function BookPage() {
     ).map((s) => ({ key: s.key, sqft: Number(pressureSqft[s.key]) }));
 
     if (surfaces.length === 0) {
-      setPressureMapError("Select at least one surface and enter its square footage.");
+      setPressureMapError(t("selectSurfaceFirst"));
       return;
     }
 
@@ -416,7 +424,7 @@ export default function BookPage() {
       setPressureEstimate({ lineItems: data.lineItems, total: data.total });
       setPressureMapError(null);
     } else {
-      setPressureMapError(data.error ?? "Could not price those surfaces.");
+      setPressureMapError(data.error ?? t("couldNotPriceSurfaces"));
     }
   }
 
@@ -424,11 +432,11 @@ export default function BookPage() {
     e.preventDefault();
     if (isSubmitting) return;
     if (selectedServices.length === 0) {
-      setStatus("Please select at least one service.");
+      setStatus(t("pleaseSelectService"));
       return;
     }
     setIsSubmitting(true);
-    setStatus("Booking...");
+    setStatus(t("bookingBtn"));
     try {
       const res = await fetch("/api/bookings", {
         method: "POST",
@@ -444,10 +452,10 @@ export default function BookPage() {
         }),
       });
       if (res.ok) {
-        setStatus("✓ Booked! Confirmation sent to " + email);
+        setStatus(t("bookedStatus", { email }));
       } else {
         const err = await res.json();
-        setStatus("Error: " + JSON.stringify(err.error));
+        setStatus(t("errorStatus", { msg: JSON.stringify(err.error) }));
       }
     } finally {
       setIsSubmitting(false);
@@ -464,12 +472,10 @@ export default function BookPage() {
         <h1>
           Your lawn, <span className="accent">handled.</span>
         </h1>
-        <p style={{ color: "var(--text-muted)", marginTop: -4 }}>
-          Professional mowing, edging & trim for homes right in your neighborhood.
-        </p>
-        <h2 style={{ marginTop: 24, fontSize: 18 }}>Book an appointment</h2>
+        <p style={{ color: "var(--text-muted)", marginTop: -4 }}>{t("tagline")}</p>
+        <h2 style={{ marginTop: 24, fontSize: 18 }}>{t("bookHeading")}</h2>
         <form onSubmit={submitBooking}>
-          <label>Services</label>
+          <label>{t("servicesLabel")}</label>
           {services.map((s) => (
             <label key={s.name} style={{ display: "block", fontWeight: "normal" }}>
               <input
@@ -478,37 +484,35 @@ export default function BookPage() {
                 checked={selectedServices.includes(s.name)}
                 onChange={() => toggleService(s.name)}
               />
-              {s.name} — starting at ${s.basePrice}
+              {s.name} — {t("startingAt")} ${s.basePrice}
             </label>
           ))}
-          {selectedServices.length > 0 && <p>Estimated total: ${estimatedTotal}</p>}
+          {selectedServices.length > 0 && <p>{t("estimatedTotal", { amount: estimatedTotal })}</p>}
 
-          <label>Name</label>
+          <label>{t("nameLabel")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required />
 
-          <label>Email</label>
+          <label>{t("emailLabel")}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
 
-          <label>Address</label>
+          <label>{t("addressLabel")}</label>
           <input value={address} onChange={(e) => setAddress(e.target.value)} required />
 
           {mowingSelected && (
             <div style={{ marginTop: -4, marginBottom: 16 }}>
               {!mowingEstimate && (
                 <>
-                  <label style={{ fontWeight: "normal", fontSize: 13 }}>
-                    Grass height, if overgrown (inches) — optional
-                  </label>
+                  <label style={{ fontWeight: "normal", fontSize: 13 }}>{t("grassHeightLabel")}</label>
                   <input
                     type="number"
                     min={0}
-                    placeholder="e.g. 8"
+                    placeholder={t("grassHeightPlaceholder")}
                     value={grassHeightIn}
                     onChange={(e) => setGrassHeightIn(e.target.value)}
                     style={{ maxWidth: 120 }}
                   />
                   <button type="button" onClick={getLawnEstimate} disabled={mapLoading}>
-                    {mapLoading ? "Loading map..." : "Measure my lawn for an exact mowing price"}
+                    {mapLoading ? t("loadingMap") : t("measureLawnBtn")}
                   </button>
                 </>
               )}
@@ -516,8 +520,8 @@ export default function BookPage() {
               {showMap && !mowingEstimate && (
                 <div style={{ marginTop: 12 }}>
                   <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    Click points around your lawn's edges to outline it ({pointCount} point
-                    {pointCount === 1 ? "" : "s"} placed).
+                    {t("clickPointsLawn")}{" "}
+                    {t("pointsPlaced", { count: pointCount, s: pointCount === 1 ? "" : "s" })}
                   </p>
                   <div
                     ref={mapRef}
@@ -525,25 +529,23 @@ export default function BookPage() {
                   />
                   <div style={{ display: "flex", gap: 10 }}>
                     <button type="button" onClick={finishMeasuring} disabled={pointCount < 3}>
-                      Finish measuring
+                      {t("finishMeasuring")}
                     </button>
                     <button type="button" onClick={clearLawnBoundary} disabled={pointCount === 0}>
-                      Clear
+                      {t("clear")}
                     </button>
                   </div>
                 </div>
               )}
               {mowingEstimate && mowingEstimate.needsManualQuote && (
                 <p className="accent">
-                  Lawn measured: {mowingEstimate.sqft.toLocaleString()} sq ft. Grass over 10in is priced by
-                  hand — we'll follow up with a custom quote before your appointment.
+                  {t("lawnMeasuredManual", { sqft: mowingEstimate.sqft.toLocaleString() })}
                 </p>
               )}
               {mowingEstimate && !mowingEstimate.needsManualQuote && (
                 <p className="accent">
-                  Lawn measured: {mowingEstimate.sqft.toLocaleString()} sq ft — mowing price: $
-                  {mowingEstimate.total}
-                  {mowingEstimate.overgrownFee > 0 && ` (includes $${mowingEstimate.overgrownFee} overgrown fee)`}
+                  {t("lawnMeasuredPrice", { sqft: mowingEstimate.sqft.toLocaleString(), total: mowingEstimate.total ?? 0 })}
+                  {mowingEstimate.overgrownFee > 0 && t("overgrownFeeNote", { fee: mowingEstimate.overgrownFee })}
                 </p>
               )}
             </div>
@@ -553,7 +555,7 @@ export default function BookPage() {
             <div style={{ marginTop: -4, marginBottom: 16 }}>
               {!fenceEstimate && (
                 <>
-                  <label style={{ fontWeight: "normal", fontSize: 13 }}>Fence material</label>
+                  <label style={{ fontWeight: "normal", fontSize: 13 }}>{t("fenceMaterialLabel")}</label>
                   <select value={fenceMaterial} onChange={(e) => setFenceMaterial(e.target.value)} style={{ maxWidth: 200 }}>
                     {FENCE_MATERIALS.map((m) => (
                       <option key={m.value} value={m.value}>
@@ -562,7 +564,7 @@ export default function BookPage() {
                     ))}
                   </select>
                   <button type="button" onClick={measureFenceLine} disabled={fenceMapLoading}>
-                    {fenceMapLoading ? "Loading map..." : "Measure my fence line for an exact price"}
+                    {fenceMapLoading ? t("loadingMap") : t("measureFenceBtn")}
                   </button>
                 </>
               )}
@@ -570,8 +572,8 @@ export default function BookPage() {
               {showFenceMap && !fenceEstimate && (
                 <div style={{ marginTop: 12 }}>
                   <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    Click points along where the fence will go ({fencePointCount} point
-                    {fencePointCount === 1 ? "" : "s"} placed).
+                    {t("clickPointsFence")}{" "}
+                    {t("pointsPlaced", { count: fencePointCount, s: fencePointCount === 1 ? "" : "s" })}
                   </p>
                   <div
                     ref={fenceMapRef}
@@ -579,19 +581,21 @@ export default function BookPage() {
                   />
                   <div style={{ display: "flex", gap: 10 }}>
                     <button type="button" onClick={finishFenceMeasuring} disabled={fencePointCount < 2}>
-                      Finish measuring
+                      {t("finishMeasuring")}
                     </button>
                     <button type="button" onClick={clearFenceLine} disabled={fencePointCount === 0}>
-                      Clear
+                      {t("clear")}
                     </button>
                   </div>
                 </div>
               )}
               {fenceEstimate && (
                 <p className="accent">
-                  Fence line measured: {fenceEstimate.lengthFt} ft (
-                  {FENCE_MATERIALS.find((m) => m.value === fenceEstimate.material)?.label}) — price: $
-                  {fenceEstimate.total}
+                  {t("fenceMeasuredPrice", {
+                    ft: fenceEstimate.lengthFt,
+                    material: FENCE_MATERIALS.find((m) => m.value === fenceEstimate.material)?.label ?? "",
+                    total: fenceEstimate.total,
+                  })}
                 </p>
               )}
             </div>
@@ -599,7 +603,7 @@ export default function BookPage() {
 
           {selectedServices.includes("Pressure Washing") && (
             <div style={{ marginTop: -4, marginBottom: 16 }}>
-              <label style={{ fontWeight: "normal", fontSize: 13 }}>Surfaces to wash</label>
+              <label style={{ fontWeight: "normal", fontSize: 13 }}>{t("surfacesToWashLabel")}</label>
               {PRESSURE_SURFACES.map((s) => (
                 <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <input
@@ -612,7 +616,7 @@ export default function BookPage() {
                   <input
                     type="number"
                     min={1}
-                    placeholder="sq ft"
+                    placeholder={t("sqftPlaceholder")}
                     disabled={!pressureSelected[s.key]}
                     value={pressureSqft[s.key] ?? ""}
                     onChange={(e) => setPressureSqft((prev) => ({ ...prev, [s.key]: e.target.value }))}
@@ -624,7 +628,7 @@ export default function BookPage() {
                     disabled={pressureMapLoading}
                     style={{ fontSize: 12, padding: "8px 10px" }}
                   >
-                    Measure via map
+                    {t("measureViaMapBtn")}
                   </button>
                 </div>
               ))}
@@ -634,11 +638,12 @@ export default function BookPage() {
               {activePressureSurface && (
                 <div style={{ marginTop: 4, marginBottom: 16 }}>
                   <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    Outlining{" "}
+                    {t("outlining")}{" "}
                     <strong style={{ color: "var(--text)" }}>
                       {PRESSURE_SURFACES.find((s) => s.key === activePressureSurface)?.label}
                     </strong>{" "}
-                    — click points around its edges ({pressurePointCount} point{pressurePointCount === 1 ? "" : "s"} placed).
+                    — {t("clickPointsSurface")}{" "}
+                    {t("pointsPlaced", { count: pressurePointCount, s: pressurePointCount === 1 ? "" : "s" })}
                   </p>
                   <div
                     ref={pressureMapRef}
@@ -646,29 +651,33 @@ export default function BookPage() {
                   />
                   <div style={{ display: "flex", gap: 10 }}>
                     <button type="button" onClick={finishPressureMeasuring} disabled={pressurePointCount < 3}>
-                      Finish measuring
+                      {t("finishMeasuring")}
                     </button>
                     <button type="button" onClick={clearActivePressurePolygon} disabled={pressurePointCount === 0}>
-                      Clear
+                      {t("clear")}
                     </button>
                   </div>
                 </div>
               )}
 
               <button type="button" onClick={calculatePressureEstimate} style={{ fontSize: 13 }}>
-                Calculate pressure washing price
+                {t("calculatePressureBtn")}
               </button>
 
               {pressureEstimate && (
                 <div style={{ marginTop: 8 }}>
                   {pressureEstimate.lineItems.map((li) => (
                     <p key={li.key} className="accent" style={{ margin: "2px 0", fontSize: 13 }}>
-                      {PRESSURE_SURFACES.find((s) => s.key === li.key)?.label}: {li.sqft} sq ft @ ${li.rate}/sq ft = $
-                      {li.cost}
+                      {t("pressureLineItem", {
+                        surface: PRESSURE_SURFACES.find((s) => s.key === li.key)?.label ?? "",
+                        sqft: li.sqft,
+                        rate: li.rate,
+                        cost: li.cost,
+                      })}
                     </p>
                   ))}
                   <p className="accent" style={{ fontWeight: 700 }}>
-                    Pressure washing price: ${pressureEstimate.total}
+                    {t("pressureTotal", { total: pressureEstimate.total })}
                   </p>
                 </div>
               )}
@@ -678,11 +687,11 @@ export default function BookPage() {
           {mowingEstimate && (
             <>
               <p className="brand-label" style={{ textAlign: "center", marginTop: 8 }}>
-                — Service Plans —
+                {t("servicePlansHeading")}
               </p>
 
               <p className="brand-label" style={{ marginBottom: 8 }}>
-                Recurring care — lowest cost
+                {t("recurringHeading")}
               </p>
               <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12, marginBottom: 16 }}>
                 {RECURRING_PLANS.map((p) => (
@@ -718,14 +727,14 @@ export default function BookPage() {
                     </span>
                     <span className="accent" style={{ fontWeight: 700 }}>
                       ${Math.round(p.basePrice * sizeMultiplier)}
-                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>/visit</span>
+                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{t("perVisit")}</span>
                     </span>
                   </label>
                 ))}
               </div>
 
               <p className="brand-label" style={{ marginBottom: 8 }}>
-                As-needed — premium rate
+                {t("asNeededHeading")}
               </p>
               <div style={{ border: "1px dashed var(--border)", borderRadius: 8, padding: 12, marginBottom: 24 }}>
                 {AS_NEEDED_PLANS.map((p) => (
@@ -756,7 +765,7 @@ export default function BookPage() {
                     </span>
                     <span style={{ fontWeight: 700 }}>
                       ${Math.round(p.basePrice * sizeMultiplier)}
-                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>/visit</span>
+                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{t("perVisit")}</span>
                     </span>
                   </label>
                 ))}
@@ -764,7 +773,7 @@ export default function BookPage() {
             </>
           )}
 
-          <label>Date</label>
+          <label>{t("dateLabel")}</label>
           <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <button
@@ -776,7 +785,7 @@ export default function BookPage() {
                 ‹
               </button>
               <strong>
-                {calendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                {calendarMonth.toLocaleDateString(dateLocale, { month: "long", year: "numeric" })}
               </strong>
               <button
                 type="button"
@@ -798,7 +807,7 @@ export default function BookPage() {
                 marginBottom: 6,
               }}
             >
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+              {WEEKDAY_LETTERS[lang].map((d, i) => (
                 <div key={i}>{d}</div>
               ))}
             </div>
@@ -835,7 +844,9 @@ export default function BookPage() {
                     >
                       <div>{day.getDate()}</div>
                       {dayAvailability && (
-                        <div style={{ fontSize: 9, color: "var(--gold)" }}>{dayAvailability.count} booked</div>
+                        <div style={{ fontSize: 9, color: "var(--gold)" }}>
+                          {t("bookedCount", { count: dayAvailability.count })}
+                        </div>
                       )}
                     </button>
                   );
@@ -847,23 +858,27 @@ export default function BookPage() {
                 const selected = availability.find((a) => a.date === date);
                 return (
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 10, marginBottom: 0 }}>
-                    Selected:{" "}
+                    {t("selectedDatePrefix")}{" "}
                     <strong style={{ color: "var(--text)" }}>
-                      {new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+                      {new Date(date + "T00:00:00").toLocaleDateString(dateLocale, {
                         weekday: "long",
                         month: "long",
                         day: "numeric",
                       })}
                     </strong>
                     {selected
-                      ? ` — ${selected.count} other booking${selected.count === 1 ? "" : "s"} that day at ${selected.times.join(", ")}. You can still book this day.`
-                      : " — no other bookings that day yet."}
+                      ? t("otherBookingsNote", {
+                          count: selected.count,
+                          s: selected.count === 1 ? "" : "s",
+                          times: selected.times.join(", "),
+                        })
+                      : t("noBookingsNote")}
                   </p>
                 );
               })()}
           </div>
 
-          <label>Time</label>
+          <label>{t("timeLabel")}</label>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
 
           <label>
@@ -873,11 +888,11 @@ export default function BookPage() {
               checked={isEmergency}
               onChange={(e) => setIsEmergency(e.target.checked)}
             />
-            Emergency appointment (+$15 rush fee)
+            {t("emergencyLabel")}
           </label>
 
           <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Booking..." : "Confirm appointment"}
+            {isSubmitting ? t("bookingBtn") : t("confirmBtn")}
           </button>
         </form>
         {status && <p>{status}</p>}

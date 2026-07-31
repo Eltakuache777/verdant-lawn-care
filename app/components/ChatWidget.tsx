@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useLanguage } from "./LanguageProvider";
 
 type Msg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
 
@@ -10,6 +11,7 @@ function isVideoUrl(url: string) {
 
 export default function ChatWidget() {
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -70,7 +72,7 @@ export default function ChatWidget() {
         const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
         if (!uploadRes.ok) {
           const err = await uploadRes.json();
-          alert(err.error ?? "Could not upload attachments.");
+          alert(err.error ?? t("couldNotUpload"));
           return;
         }
         const uploadData = await uploadRes.json();
@@ -119,7 +121,7 @@ export default function ChatWidget() {
           zIndex: 1000,
           boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
         }}
-        aria-label="Chat with us"
+        aria-label={t("chatButtonAria")}
       >
         {open ? "✕" : "💬"}
       </button>
@@ -142,14 +144,14 @@ export default function ChatWidget() {
           }}
         >
           <div style={{ padding: 12, borderBottom: "1px solid var(--border)", fontWeight: 700 }}>
-            Chat with Verdant Lawn Care
+            {t("chatTitle")}
           </div>
 
           {!identified ? (
             <form onSubmit={startChat} style={{ padding: 12 }}>
-              <label style={{ fontSize: 12 }}>Name</label>
+              <label style={{ fontSize: 12 }}>{t("nameLabel")}</label>
               <input value={name} onChange={(e) => setName(e.target.value)} required style={{ marginBottom: 8 }} />
-              <label style={{ fontSize: 12 }}>Email</label>
+              <label style={{ fontSize: 12 }}>{t("emailLabel")}</label>
               <input
                 type="email"
                 value={email}
@@ -158,7 +160,7 @@ export default function ChatWidget() {
                 style={{ marginBottom: 8 }}
               />
               <button type="submit" style={{ width: "100%" }}>
-                Start chat
+                {t("chatStartBtn")}
               </button>
             </form>
           ) : (
@@ -176,9 +178,7 @@ export default function ChatWidget() {
                 }}
               >
                 {messages.length === 0 && (
-                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    Ask us anything — we'll get back to you here.
-                  </p>
+                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("chatEmptyState")}</p>
                 )}
                 {messages.map((m) => (
                   <div
@@ -213,14 +213,14 @@ export default function ChatWidget() {
               <form onSubmit={sendMessage} style={{ padding: 8, borderTop: "1px solid var(--border)" }}>
                 {files.length > 0 && (
                   <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
-                    {files.length} file{files.length === 1 ? "" : "s"} attached
+                    {t("chatFilesAttached", { count: files.length, s: files.length === 1 ? "" : "s" })}
                   </p>
                 )}
                 <div style={{ display: "flex", gap: 6 }}>
                   <input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    placeholder="Describe your project idea..."
+                    placeholder={t("chatPlaceholder")}
                     style={{ marginBottom: 0, flex: 1 }}
                   />
                   <input
@@ -235,12 +235,12 @@ export default function ChatWidget() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     style={{ padding: "8px 10px" }}
-                    aria-label="Attach photos or videos"
+                    aria-label={t("chatAttachAria")}
                   >
                     📎
                   </button>
                   <button type="submit" disabled={sending} style={{ padding: "8px 12px" }}>
-                    Send
+                    {t("chatSend")}
                   </button>
                 </div>
               </form>
