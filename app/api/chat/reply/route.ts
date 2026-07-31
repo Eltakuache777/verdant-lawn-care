@@ -7,6 +7,7 @@ const ReplySchema = z.object({
   customerEmail: z.string().email(),
   customerName: z.string().min(1),
   body: z.string().min(1).max(2000),
+  attachmentUrls: z.array(z.string()).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
       customerName: parsed.data.customerName,
       sender: "admin",
       body: parsed.data.body,
+      attachmentUrls: parsed.data.attachmentUrls ?? [],
     },
   });
   return NextResponse.json(message, { status: 201 });

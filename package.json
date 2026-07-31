@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.27.0",
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
     "@prisma/client": "5.18.0",
     "@sendgrid/mail": "^8.1.6",
     "next": "14.2.35",

@@ -5,3 +5,5 @@ node_modules/
 .env*.local
 public/uploads/*
 !public/uploads/.gitkeep
+android/
+tsconfig.tsbuildinfo

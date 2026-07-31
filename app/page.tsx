@@ -1,11 +1,27 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/googleMaps";
+import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 
 type ServiceRow = { name: string; basePrice: number };
 type PlanKey = "weekly" | "biweekly" | "monthly" | "one_time";
 type MowingEstimate = { sqft: number; total: number | null; overgrownFee: number; needsManualQuote: boolean };
 type AvailabilityDay = { date: string; count: number; times: string[] };
+type FenceEstimate = { lengthFt: number; material: string; total: number };
+type PressureLineItem = { key: string; sqft: number; rate: number; cost: number };
+type PressureEstimate = { lineItems: PressureLineItem[]; total: number };
+
+const FENCE_MATERIALS = [
+  { value: "chain_link", label: "Chain Link" },
+  { value: "wood", label: "Wood" },
+  { value: "vinyl", label: "Vinyl" },
+];
+const PRESSURE_SURFACES = [
+  { key: "driveway", label: "Driveway" },
+  { key: "siding", label: "Siding" },
+  { key: "patio", label: "Patio" },
+  { key: "fence_wash", label: "Fence" },
+];
 
 const RECURRING_PLANS: { key: PlanKey; label: string; note: string; basePrice: number; badge?: string }[] = [
   { key: "weekly", label: "Weekly", note: "Always sharp, free priority slot", basePrice: 40, badge: "BEST VALUE" },
@@ -15,26 +31,6 @@ const AS_NEEDED_PLANS: { key: PlanKey; label: string; note: string; basePrice: n
   { key: "monthly", label: "Monthly", note: "Low-maintenance lots", basePrice: 85 },
   { key: "one_time", label: "One-Time", note: "No commitment, no slot held", basePrice: 100 },
 ];
-
-function toDateKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function buildMonthGrid(monthDate: Date): (Date | null)[][] {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const startWeekday = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < startWeekday; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const weeks: (Date | null)[][] = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-  return weeks;
-}
 
 export default function BookPage() {
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -61,6 +57,28 @@ export default function BookPage() {
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
+  // Fence Building measuring
+  const [fenceMapLoading, setFenceMapLoading] = useState(false);
+  const [fenceMapError, setFenceMapError] = useState<string | null>(null);
+  const [showFenceMap, setShowFenceMap] = useState(false);
+  const [fencePointCount, setFencePointCount] = useState(0);
+  const [fenceMaterial, setFenceMaterial] = useState("chain_link");
+  const [fenceEstimate, setFenceEstimate] = useState<FenceEstimate | null>(null);
+  const fenceMapRef = useRef<HTMLDivElement>(null);
+  const fencePolylineRef = useRef<any>(null);
+
+  // Pressure Washing measuring
+  const [pressureMapLoading, setPressureMapLoading] = useState(false);
+  const [pressureMapError, setPressureMapError] = useState<string | null>(null);
+  const [activePressureSurface, setActivePressureSurface] = useState<string | null>(null);
+  const [pressurePointCount, setPressurePointCount] = useState(0);
+  const [pressureSelected, setPressureSelected] = useState<Record<string, boolean>>({});
+  const [pressureSqft, setPressureSqft] = useState<Record<string, string>>({});
+  const [pressureEstimate, setPressureEstimate] = useState<PressureEstimate | null>(null);
+  const pressureMapRef = useRef<HTMLDivElement>(null);
+  const pressurePolygonRef = useRef<any>(null);
+  const pressureLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+
   useEffect(() => {
     fetch("/api/services")
       .then((r) => r.json())
@@ -80,12 +98,24 @@ export default function BookPage() {
       setMowingEstimate(null);
       setPlan(null);
     }
+    if (name === "Fence Building") {
+      setShowFenceMap(false);
+      setFenceEstimate(null);
+    }
+    if (name === "Pressure Washing") {
+      setActivePressureSurface(null);
+      setPressureEstimate(null);
+      setPressureSelected({});
+      setPressureSqft({});
+    }
   }
 
   const estimatedTotal = services
     .filter((s) => selectedServices.includes(s.name))
     .reduce((sum, s) => {
       if (s.name === "Mowing" && mowingEstimate) return sum + (mowingEstimate.total ?? s.basePrice);
+      if (s.name === "Fence Building" && fenceEstimate) return sum + fenceEstimate.total;
+      if (s.name === "Pressure Washing" && pressureEstimate) return sum + pressureEstimate.total;
       return sum + s.basePrice;
     }, 0);
 
@@ -188,6 +218,205 @@ export default function BookPage() {
       });
     } else {
       setMapError(data.error ?? "Could not price that lawn.");
+    }
+  }
+
+  async function measureFenceLine() {
+    if (!address) {
+      setFenceMapError("Enter your address first.");
+      return;
+    }
+    setFenceMapError(null);
+    setFenceEstimate(null);
+    setFenceMapLoading(true);
+    try {
+      const res = await fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFenceMapError(data.error ?? "Could not locate that address.");
+        return;
+      }
+      setShowFenceMap(true);
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        setFenceMapError("Google Maps isn't configured yet.");
+        return;
+      }
+      await loadGoogleMaps(apiKey);
+      initFenceMap(data.location);
+    } catch {
+      setFenceMapError("Something went wrong loading the map.");
+    } finally {
+      setFenceMapLoading(false);
+    }
+  }
+
+  function initFenceMap(location: { lat: number; lng: number }) {
+    if (!fenceMapRef.current) return;
+    const google = window.google;
+    const map = new google.maps.Map(fenceMapRef.current, {
+      center: location,
+      zoom: 20,
+      mapTypeId: "satellite",
+    });
+    const polyline = new google.maps.Polyline({
+      map,
+      path: [],
+      editable: true,
+      strokeColor: "#34d67f",
+      strokeWeight: 3,
+    });
+    fencePolylineRef.current = polyline;
+    setFencePointCount(0);
+
+    map.addListener("click", (e: any) => {
+      const path = polyline.getPath();
+      path.push(e.latLng);
+      setFencePointCount(path.getLength());
+    });
+  }
+
+  async function finishFenceMeasuring() {
+    const google = window.google;
+    const polyline = fencePolylineRef.current;
+    if (!polyline || polyline.getPath().getLength() < 2) {
+      setFenceMapError("Click at least 2 points to trace the fence line.");
+      return;
+    }
+    const lengthM = google.maps.geometry.spherical.computeLength(polyline.getPath());
+    const lengthFt = Math.round(lengthM * 3.28084);
+    const res = await fetch("/api/estimate/fence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lengthFt, material: fenceMaterial }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setFenceEstimate({ lengthFt, material: fenceMaterial, total: data.total });
+    } else {
+      setFenceMapError(data.error ?? "Could not price that fence line.");
+    }
+  }
+
+  function clearFenceLine() {
+    fencePolylineRef.current?.getPath().clear();
+    setFencePointCount(0);
+    setFenceMapError(null);
+  }
+
+  async function measurePressureSurface(key: string) {
+    if (!address) {
+      setPressureMapError("Enter your address first.");
+      return;
+    }
+    setPressureMapError(null);
+    setPressureMapLoading(true);
+    try {
+      if (!pressureLocationRef.current) {
+        const res = await fetch("/api/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setPressureMapError(data.error ?? "Could not locate that address.");
+          return;
+        }
+        pressureLocationRef.current = data.location;
+      }
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        setPressureMapError("Google Maps isn't configured yet.");
+        return;
+      }
+      await loadGoogleMaps(apiKey);
+      setPressurePointCount(0);
+      setActivePressureSurface(key);
+    } catch {
+      setPressureMapError("Something went wrong loading the map.");
+    } finally {
+      setPressureMapLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!activePressureSurface || !pressureMapRef.current || !pressureLocationRef.current) return;
+    const google = window.google;
+
+    const map = new google.maps.Map(pressureMapRef.current, {
+      center: pressureLocationRef.current,
+      zoom: 20,
+      mapTypeId: "satellite",
+    });
+
+    const polygon = new google.maps.Polygon({
+      map,
+      path: [],
+      editable: true,
+      fillColor: "#34d67f",
+      fillOpacity: 0.3,
+      strokeColor: "#34d67f",
+      strokeWeight: 2,
+    });
+    pressurePolygonRef.current = polygon;
+
+    map.addListener("click", (e: any) => {
+      const path = polygon.getPath();
+      path.push(e.latLng);
+      setPressurePointCount(path.getLength());
+    });
+  }, [activePressureSurface]);
+
+  function finishPressureMeasuring() {
+    const google = window.google;
+    const polygon = pressurePolygonRef.current;
+    if (!polygon || polygon.getPath().getLength() < 3 || !activePressureSurface) {
+      setPressureMapError("Click at least 3 points to outline the surface.");
+      return;
+    }
+    const areaSqM = google.maps.geometry.spherical.computeArea(polygon.getPath());
+    const areaSqFt = Math.round(areaSqM * 10.7639);
+    setPressureSqft((prev) => ({ ...prev, [activePressureSurface]: String(areaSqFt) }));
+    setPressureSelected((prev) => ({ ...prev, [activePressureSurface]: true }));
+    setActivePressureSurface(null);
+  }
+
+  function clearActivePressurePolygon() {
+    pressurePolygonRef.current?.getPath().clear();
+    setPressurePointCount(0);
+    setPressureMapError(null);
+  }
+
+  function togglePressureSurface(key: string) {
+    setPressureSelected((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  async function calculatePressureEstimate() {
+    const surfaces = PRESSURE_SURFACES.filter(
+      (s) => pressureSelected[s.key] && Number(pressureSqft[s.key]) > 0
+    ).map((s) => ({ key: s.key, sqft: Number(pressureSqft[s.key]) }));
+
+    if (surfaces.length === 0) {
+      setPressureMapError("Select at least one surface and enter its square footage.");
+      return;
+    }
+
+    const res = await fetch("/api/estimate/pressure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ surfaces }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setPressureEstimate({ lineItems: data.lineItems, total: data.total });
+      setPressureMapError(null);
+    } else {
+      setPressureMapError(data.error ?? "Could not price those surfaces.");
     }
   }
 
@@ -316,6 +545,132 @@ export default function BookPage() {
                   {mowingEstimate.total}
                   {mowingEstimate.overgrownFee > 0 && ` (includes $${mowingEstimate.overgrownFee} overgrown fee)`}
                 </p>
+              )}
+            </div>
+          )}
+
+          {selectedServices.includes("Fence Building") && (
+            <div style={{ marginTop: -4, marginBottom: 16 }}>
+              {!fenceEstimate && (
+                <>
+                  <label style={{ fontWeight: "normal", fontSize: 13 }}>Fence material</label>
+                  <select value={fenceMaterial} onChange={(e) => setFenceMaterial(e.target.value)} style={{ maxWidth: 200 }}>
+                    {FENCE_MATERIALS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={measureFenceLine} disabled={fenceMapLoading}>
+                    {fenceMapLoading ? "Loading map..." : "Measure my fence line for an exact price"}
+                  </button>
+                </>
+              )}
+              {fenceMapError && <p style={{ color: "var(--gold)" }}>{fenceMapError}</p>}
+              {showFenceMap && !fenceEstimate && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                    Click points along where the fence will go ({fencePointCount} point
+                    {fencePointCount === 1 ? "" : "s"} placed).
+                  </p>
+                  <div
+                    ref={fenceMapRef}
+                    style={{ height: 400, width: "100%", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 10 }}
+                  />
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button type="button" onClick={finishFenceMeasuring} disabled={fencePointCount < 2}>
+                      Finish measuring
+                    </button>
+                    <button type="button" onClick={clearFenceLine} disabled={fencePointCount === 0}>
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+              {fenceEstimate && (
+                <p className="accent">
+                  Fence line measured: {fenceEstimate.lengthFt} ft (
+                  {FENCE_MATERIALS.find((m) => m.value === fenceEstimate.material)?.label}) — price: $
+                  {fenceEstimate.total}
+                </p>
+              )}
+            </div>
+          )}
+
+          {selectedServices.includes("Pressure Washing") && (
+            <div style={{ marginTop: -4, marginBottom: 16 }}>
+              <label style={{ fontWeight: "normal", fontSize: 13 }}>Surfaces to wash</label>
+              {PRESSURE_SURFACES.map((s) => (
+                <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: "auto", margin: 0 }}
+                    checked={!!pressureSelected[s.key]}
+                    onChange={() => togglePressureSurface(s.key)}
+                  />
+                  <span style={{ minWidth: 80 }}>{s.label}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="sq ft"
+                    disabled={!pressureSelected[s.key]}
+                    value={pressureSqft[s.key] ?? ""}
+                    onChange={(e) => setPressureSqft((prev) => ({ ...prev, [s.key]: e.target.value }))}
+                    style={{ marginBottom: 0, width: 100 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => measurePressureSurface(s.key)}
+                    disabled={pressureMapLoading}
+                    style={{ fontSize: 12, padding: "8px 10px" }}
+                  >
+                    Measure via map
+                  </button>
+                </div>
+              ))}
+
+              {pressureMapError && <p style={{ color: "var(--gold)" }}>{pressureMapError}</p>}
+
+              {activePressureSurface && (
+                <div style={{ marginTop: 4, marginBottom: 16 }}>
+                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                    Outlining{" "}
+                    <strong style={{ color: "var(--text)" }}>
+                      {PRESSURE_SURFACES.find((s) => s.key === activePressureSurface)?.label}
+                    </strong>{" "}
+                    — click points around its edges ({pressurePointCount} point{pressurePointCount === 1 ? "" : "s"} placed).
+                  </p>
+                  <div
+                    ref={pressureMapRef}
+                    style={{ height: 400, width: "100%", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 10 }}
+                  />
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button type="button" onClick={finishPressureMeasuring} disabled={pressurePointCount < 3}>
+                      Finish measuring
+                    </button>
+                    <button type="button" onClick={clearActivePressurePolygon} disabled={pressurePointCount === 0}>
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button type="button" onClick={calculatePressureEstimate} style={{ fontSize: 13 }}>
+                Calculate pressure washing price
+              </button>
+
+              {pressureEstimate && (
+                <div style={{ marginTop: 8 }}>
+                  {pressureEstimate.lineItems.map((li) => (
+                    <p key={li.key} className="accent" style={{ margin: "2px 0", fontSize: 13 }}>
+                      {PRESSURE_SURFACES.find((s) => s.key === li.key)?.label}: {li.sqft} sq ft @ ${li.rate}/sq ft = $
+                      {li.cost}
+                    </p>
+                  ))}
+                  <p className="accent" style={{ fontWeight: 700 }}>
+                    Pressure washing price: ${pressureEstimate.total}
+                  </p>
+                </div>
               )}
             </div>
           )}

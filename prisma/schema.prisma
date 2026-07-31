@@ -51,7 +51,20 @@ model Booking {
   basePrice     Float
   totalPrice    Float
   status        String   @default("pending") // pending | confirmed | completed | cancelled
+  amountPaid    Float? // actual amount collected — entered by the owner once the job's done
+  completedAt   DateTime?
   createdAt     DateTime @default(now())
+}
+
+// A payout the owner made to an employee — a simple running log, not tied to
+// specific jobs (workers aren't assigned to individual bookings in this app).
+model WorkerPayment {
+  id             String   @id @default(cuid())
+  workerUsername String
+  workerName     String
+  amount         Float
+  note           String?
+  paidAt         DateTime @default(now())
 }
 
 // A customer's request for an AI design concept package (the $50/$70/$120 tiers).

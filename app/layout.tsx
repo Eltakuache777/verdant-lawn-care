@@ -60,6 +60,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/design" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
             AI Design
           </a>
+          <a href="/worker" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+            Worker
+          </a>
           <a href="/admin" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
             Admin
           </a>
