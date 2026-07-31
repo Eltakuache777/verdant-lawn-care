@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
+import { DESIGN_TIERS } from "@/lib/designTiers";
 
 type ServiceRow = { name: string; basePrice: number };
 type MaterialRow = { name: string; unit: string; price: number };
@@ -30,7 +31,7 @@ type Thread = {
   lastAt: string;
 };
 type ChatMsg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
-type View = "schedule" | "messages" | "prices" | "reports";
+type View = "schedule" | "messages" | "prices" | "reports" | "design";
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
@@ -48,7 +49,9 @@ const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "messages", icon: "💬", label: "Messages" },
   { key: "prices", icon: "💲", label: "Prices" },
   { key: "reports", icon: "📊", label: "Reports" },
+  { key: "design", icon: "🎨", label: "Design" },
 ];
+const ADMIN_ONLY_VIEWS: View[] = ["reports", "design"];
 
 // Shared by /admin (full control) and /worker (same view, everything disabled
 // via readOnly — workers can see the whole schedule, all messages, and every
@@ -79,6 +82,15 @@ export default function AdminShell({
   const [wpAmount, setWpAmount] = useState("");
   const [wpNote, setWpNote] = useState("");
   const [wpSubmitting, setWpSubmitting] = useState(false);
+
+  // Free AI design generation for the owner — always the highest tier, no Stripe checkout.
+  const [designName, setDesignName] = useState("");
+  const [designEmail, setDesignEmail] = useState("");
+  const [designDescription, setDesignDescription] = useState("");
+  const [designFiles, setDesignFiles] = useState<File[]>([]);
+  const [designSubmitting, setDesignSubmitting] = useState(false);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const designFileInputRef = useRef<HTMLInputElement>(null);
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -173,6 +185,48 @@ export default function AdminShell({
       }
     } finally {
       setWpSubmitting(false);
+    }
+  }
+
+  async function submitAdminDesign(e: React.FormEvent) {
+    e.preventDefault();
+    setDesignError(null);
+    const photoFiles = designFiles.filter((f) => f.type.startsWith("image/"));
+    if (photoFiles.length === 0) {
+      setDesignError("Attach at least one photo of the area to redesign.");
+      return;
+    }
+    setDesignSubmitting(true);
+    try {
+      const formData = new FormData();
+      for (const f of designFiles) formData.append("files", f);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        setDesignError(err.error ?? "Could not upload your photos/videos.");
+        return;
+      }
+      const { urls } = await uploadRes.json();
+
+      const genRes = await fetch("/api/design/admin-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: designName,
+          customerEmail: designEmail,
+          photoUrls: urls,
+          description: designDescription,
+        }),
+      });
+      if (!genRes.ok) {
+        const err = await genRes.json();
+        setDesignError(err.error ? JSON.stringify(err.error) : "Could not start generation.");
+        return;
+      }
+      const { quoteRequestId } = await genRes.json();
+      window.location.href = `/design/success?qr=${quoteRequestId}`;
+    } finally {
+      setDesignSubmitting(false);
     }
   }
 
@@ -299,7 +353,7 @@ export default function AdminShell({
           gap: 6,
         }}
       >
-        {RAIL_ITEMS.filter((item) => item.key !== "reports" || !readOnly).map((item) => (
+        {RAIL_ITEMS.filter((item) => !ADMIN_ONLY_VIEWS.includes(item.key) || !readOnly).map((item) => (
           <button
             key={item.key}
             onClick={() => setView(item.key)}
@@ -789,6 +843,63 @@ export default function AdminShell({
                   <strong>${report.totalPaidToWorkers.toLocaleString()}</strong>
                 </p>
               )}
+            </div>
+          </div>
+        )}
+
+        {view === "design" && !readOnly && (
+          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+            <div className="card" style={{ margin: 0 }}>
+              <h1>Free AI design (owner)</h1>
+              <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
+                Always runs at the highest tier ({DESIGN_TIERS.highest.concepts}+ concepts) — no charge, no
+                checkout.
+              </p>
+              <form onSubmit={submitAdminDesign}>
+                <label>Customer name (who this design is for)</label>
+                <input value={designName} onChange={(e) => setDesignName(e.target.value)} required />
+
+                <label>Customer email</label>
+                <input type="email" value={designEmail} onChange={(e) => setDesignEmail(e.target.value)} required />
+
+                <label>Describe what you want</label>
+                <textarea
+                  value={designDescription}
+                  onChange={(e) => setDesignDescription(e.target.value)}
+                  placeholder="e.g. A stone patio with a fire pit, low-maintenance native plants along the fence..."
+                  rows={4}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    border: "1.5px solid var(--border)",
+                    borderRadius: 6,
+                    marginBottom: 14,
+                    fontSize: 14,
+                    background: "var(--bg-input)",
+                    color: "var(--text)",
+                    fontFamily: "inherit",
+                  }}
+                />
+
+                <label>Photos &amp; videos of the area</label>
+                <input
+                  ref={designFileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={(e) => setDesignFiles(Array.from(e.target.files ?? []))}
+                />
+                {designFiles.length > 0 && (
+                  <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{designFiles.length} file(s) selected</p>
+                )}
+
+                {designError && <p style={{ color: "var(--gold)" }}>{designError}</p>}
+
+                <button type="submit" disabled={designSubmitting}>
+                  {designSubmitting ? "Generating..." : "Generate free designs"}
+                </button>
+              </form>
             </div>
           </div>
         )}

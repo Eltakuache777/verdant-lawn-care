@@ -35,7 +35,13 @@ function isWorkerAuthorized(req: NextRequest): boolean {
 // recording/viewing money (reports, payment amounts are enforced inside the
 // booking route itself since that route also allows worker access for the
 // "mark completed" action).
-const ADMIN_ONLY_PATHS = new Set(["/admin", "/api/chat/reply", "/api/reports", "/api/reports/worker-payments"]);
+const ADMIN_ONLY_PATHS = new Set([
+  "/admin",
+  "/api/chat/reply",
+  "/api/reports",
+  "/api/reports/worker-payments",
+  "/api/design/admin-generate",
+]);
 // Endpoints workers can view too (same data the owner sees, read-only) — plus
 // marking a job completed, which is a write action both roles can do.
 const SHARED_READ_PATHS = new Set(["/worker", "/api/bookings", "/api/chat/threads"]);
@@ -83,5 +89,6 @@ export const config = {
     "/api/chat/reply",
     "/api/reports",
     "/api/reports/worker-payments",
+    "/api/design/admin-generate",
   ],
 };
