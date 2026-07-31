@@ -101,7 +101,7 @@ export default function ChatWidget() {
     }
   }
 
-  if (pathname?.startsWith("/admin")) return null;
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/worker")) return null;
 
   return (
     <>
@@ -187,7 +187,10 @@ export default function ChatWidget() {
                       padding: "8px 10px",
                       borderRadius: 8,
                       maxWidth: "80%",
+                      minWidth: 0,
                       fontSize: 13,
+                      overflowWrap: "break-word",
+                      wordBreak: "break-word",
                     }}
                   >
                     <div>{m.body}</div>

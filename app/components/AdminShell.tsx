@@ -46,18 +46,8 @@ const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "design", icon: "🎨", label: "Design" },
   { key: "workers", icon: "👥", label: "Workers" },
 ];
-const ADMIN_ONLY_VIEWS: View[] = ["reports", "design", "workers"];
-
-// Shared by /admin (full control) and /worker (same view, everything disabled
-// via readOnly — workers can see the whole schedule, all messages, and every
-// price, but can't edit a price or send a chat reply).
-export default function AdminShell({
-  readOnly = false,
-  loggedInAs,
-}: {
-  readOnly?: boolean;
-  loggedInAs?: string;
-}) {
+// Shared by /admin and /worker — the owner and workers have equal, full access.
+export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
   const [view, setView] = useState<View>("schedule");
 
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -123,10 +113,8 @@ export default function AdminShell({
       .catch(() => setBookingsError("Could not load the schedule."));
 
     loadThreads();
-    if (!readOnly) {
-      loadReport();
-      loadWorkers();
-    }
+    loadReport();
+    loadWorkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -216,7 +204,7 @@ export default function AdminShell({
     if (res.ok) {
       const updated = await res.json();
       setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...updated } : b)));
-      if (!readOnly) loadReport();
+      loadReport();
     }
   }
 
@@ -307,7 +295,7 @@ export default function AdminShell({
 
   async function sendReply(e: React.FormEvent) {
     e.preventDefault();
-    if (readOnly || !selectedEmail || (!reply.trim() && replyFiles.length === 0)) return;
+    if (!selectedEmail || (!reply.trim() && replyFiles.length === 0)) return;
     setSendingReply(true);
     try {
       let attachmentUrls: string[] = [];
@@ -346,14 +334,12 @@ export default function AdminShell({
   }
 
   function updatePrice(name: string, value: string) {
-    if (readOnly) return;
     setServices((prev) =>
       prev.map((s) => (s.name === name ? { ...s, basePrice: parseFloat(value) || 0 } : s))
     );
   }
 
   async function save() {
-    if (readOnly) return;
     setStatus("Saving...");
     const res = await fetch("/api/services", {
       method: "PUT",
@@ -364,14 +350,12 @@ export default function AdminShell({
   }
 
   function updateMaterialPrice(name: string, value: string) {
-    if (readOnly) return;
     setMaterials((prev) =>
       prev.map((m) => (m.name === name ? { ...m, price: parseFloat(value) || 0 } : m))
     );
   }
 
   async function saveMaterials() {
-    if (readOnly) return;
     setMaterialsStatus("Saving...");
     const res = await fetch("/api/materials", {
       method: "PUT",
@@ -406,7 +390,7 @@ export default function AdminShell({
           gap: 6,
         }}
       >
-        {RAIL_ITEMS.filter((item) => !ADMIN_ONLY_VIEWS.includes(item.key) || !readOnly).map((item) => (
+        {RAIL_ITEMS.map((item) => (
           <button
             key={item.key}
             onClick={() => setView(item.key)}
@@ -430,11 +414,6 @@ export default function AdminShell({
             <span style={{ fontSize: 10 }}>{item.label}</span>
           </button>
         ))}
-        {readOnly && (
-          <p style={{ fontSize: 9, color: "var(--text-muted)", textAlign: "center", marginTop: 12, padding: "0 4px" }}>
-            View only
-          </p>
-        )}
       </div>
 
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -455,7 +434,6 @@ export default function AdminShell({
             {loggedInAs && (
               <>
                 Viewing as <strong style={{ color: "var(--text)" }}>{loggedInAs}</strong>
-                {readOnly && " — read only"}
               </>
             )}
           </span>
@@ -687,7 +665,10 @@ export default function AdminShell({
                           padding: "8px 10px",
                           borderRadius: 8,
                           maxWidth: "80%",
+                          minWidth: 0,
                           fontSize: 13,
+                          overflowWrap: "break-word",
+                          wordBreak: "break-word",
                         }}
                       >
                         <div>{m.body}</div>
@@ -707,46 +688,40 @@ export default function AdminShell({
                       </div>
                     ))}
                   </div>
-                  {readOnly ? (
-                    <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", color: "var(--text-muted)", fontSize: 13 }}>
-                      View only — replies are sent by the owner.
-                    </div>
-                  ) : (
-                    <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-                      {replyFiles.length > 0 && (
-                        <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
-                          {replyFiles.length} file{replyFiles.length === 1 ? "" : "s"} attached
-                        </p>
-                      )}
-                      <form onSubmit={sendReply} style={{ display: "flex", gap: 8 }}>
-                        <input
-                          value={reply}
-                          onChange={(e) => setReply(e.target.value)}
-                          placeholder="Type a message..."
-                          style={{ marginBottom: 0, flex: 1 }}
-                        />
-                        <input
-                          ref={replyFileInputRef}
-                          type="file"
-                          accept="image/*,video/*"
-                          multiple
-                          onChange={(e) => setReplyFiles(Array.from(e.target.files ?? []))}
-                          style={{ display: "none" }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => replyFileInputRef.current?.click()}
-                          style={{ padding: "8px 10px" }}
-                          aria-label="Attach photos or videos"
-                        >
-                          📎
-                        </button>
-                        <button type="submit" disabled={sendingReply}>
-                          Send
-                        </button>
-                      </form>
-                    </div>
-                  )}
+                  <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
+                    {replyFiles.length > 0 && (
+                      <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
+                        {replyFiles.length} file{replyFiles.length === 1 ? "" : "s"} attached
+                      </p>
+                    )}
+                    <form onSubmit={sendReply} style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={reply}
+                        onChange={(e) => setReply(e.target.value)}
+                        placeholder="Type a message..."
+                        style={{ marginBottom: 0, flex: 1 }}
+                      />
+                      <input
+                        ref={replyFileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={(e) => setReplyFiles(Array.from(e.target.files ?? []))}
+                        style={{ display: "none" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => replyFileInputRef.current?.click()}
+                        style={{ padding: "8px 10px" }}
+                        aria-label="Attach photos or videos"
+                      >
+                        📎
+                      </button>
+                      <button type="submit" disabled={sendingReply}>
+                        Send
+                      </button>
+                    </form>
+                  </div>
                 </>
               )}
             </div>
@@ -756,28 +731,23 @@ export default function AdminShell({
         {view === "prices" && (
           <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
             <div className="card" style={{ margin: "0 0 24px" }}>
-              <h1>{readOnly ? "Service prices" : "Edit service prices"}</h1>
+              <h1>Edit service prices</h1>
               {services.map((s) => (
                 <div key={s.name}>
                   <label>{s.name}</label>
                   <input
                     type="number"
                     value={s.basePrice}
-                    disabled={readOnly}
                     onChange={(e) => updatePrice(s.name, e.target.value)}
                   />
                 </div>
               ))}
-              {!readOnly && (
-                <>
-                  <button onClick={save}>Save prices</button>
-                  {status && <p>{status}</p>}
-                </>
-              )}
+              <button onClick={save}>Save prices</button>
+              {status && <p>{status}</p>}
             </div>
 
             <div className="card" style={{ margin: 0 }}>
-              <h1>{readOnly ? "Material prices" : "Edit material prices"}</h1>
+              <h1>Edit material prices</h1>
               <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
                 No public API gives real Lowe's/Home Depot prices — update these yourself as they change.
               </p>
@@ -790,22 +760,17 @@ export default function AdminShell({
                     type="number"
                     step="0.01"
                     value={m.price}
-                    disabled={readOnly}
                     onChange={(e) => updateMaterialPrice(m.name, e.target.value)}
                   />
                 </div>
               ))}
-              {!readOnly && (
-                <>
-                  <button onClick={saveMaterials}>Save material prices</button>
-                  {materialsStatus && <p>{materialsStatus}</p>}
-                </>
-              )}
+              <button onClick={saveMaterials}>Save material prices</button>
+              {materialsStatus && <p>{materialsStatus}</p>}
             </div>
           </div>
         )}
 
-        {view === "reports" && !readOnly && (
+        {view === "reports" && (
           <div style={{ display: "flex", height: "100%" }}>
             <div style={{ width: "50%", borderRight: "1px solid var(--border)", padding: 20, overflowY: "auto" }}>
               {reportError && <p>{reportError}</p>}
@@ -918,7 +883,7 @@ export default function AdminShell({
           </div>
         )}
 
-        {view === "design" && !readOnly && (
+        {view === "design" && (
           <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
             <div className="card" style={{ margin: 0 }}>
               <h1>Free AI design (owner)</h1>
@@ -975,7 +940,7 @@ export default function AdminShell({
           </div>
         )}
 
-        {view === "workers" && !readOnly && (
+        {view === "workers" && (
           <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
             <div className="card" style={{ margin: 0 }}>
               <h1>Manage workers</h1>

@@ -112,21 +112,30 @@ export async function POST(req: NextRequest) {
     tools: tools as Anthropic.Tool[],
   });
 
-  // Handle one round of tool calls (loop this in production for multi-step conversations).
+  // Claude can request several tool calls in the same turn (e.g. checking
+  // multiple dates at once) — every tool_use block needs a matching
+  // tool_result in the next message, or the API rejects the whole request.
   while (response.stop_reason === "tool_use") {
-    const toolUse = response.content.find((b) => b.type === "tool_use") as Anthropic.ToolUseBlock;
-    let result;
-    if (toolUse.name === "check_availability") {
-      result = await checkAvailability((toolUse.input as any).date);
-    } else if (toolUse.name === "create_booking") {
-      result = await createBookingFromAssistant(toolUse.input);
-    }
+    const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+
+    const toolResults = await Promise.all(
+      toolUses.map(async (toolUse) => {
+        let result;
+        if (toolUse.name === "check_availability") {
+          result = await checkAvailability((toolUse.input as any).date);
+        } else if (toolUse.name === "create_booking") {
+          result = await createBookingFromAssistant(toolUse.input);
+        }
+        return {
+          type: "tool_result" as const,
+          tool_use_id: toolUse.id,
+          content: JSON.stringify(result),
+        };
+      })
+    );
 
     messages.push({ role: "assistant", content: response.content });
-    messages.push({
-      role: "user",
-      content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(result) }],
-    });
+    messages.push({ role: "user", content: toolResults });
 
     response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",

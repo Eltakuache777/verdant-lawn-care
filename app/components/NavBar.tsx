@@ -2,6 +2,7 @@
 import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { useChat } from "./ChatContext";
+import { useAssistant } from "./AssistantContext";
 import { LANGUAGES } from "@/lib/i18n";
 
 function Logo() {
@@ -16,8 +17,9 @@ function Logo() {
 export default function NavBar() {
   const { lang, setLang, t } = useLanguage();
   const { toggle } = useChat();
+  const { toggle: toggleAssistant } = useAssistant();
   const pathname = usePathname();
-  const showChat = !pathname?.startsWith("/admin");
+  const showCustomerWidgets = !pathname?.startsWith("/admin") && !pathname?.startsWith("/worker");
 
   return (
     <nav
@@ -57,7 +59,7 @@ export default function NavBar() {
       <a href="/estimate/pressure" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navPressure")}
       </a>
-      {showChat && (
+      {showCustomerWidgets && (
         <button
           type="button"
           onClick={toggle}
@@ -70,6 +72,21 @@ export default function NavBar() {
           }}
         >
           💬 {t("chatButtonAria")}
+        </button>
+      )}
+      {showCustomerWidgets && (
+        <button
+          type="button"
+          onClick={toggleAssistant}
+          style={{
+            background: "transparent",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+            fontSize: 16,
+            padding: 0,
+          }}
+        >
+          🤖 {t("assistantNavLabel")}
         </button>
       )}
       <a href="/materials" style={{ color: "var(--text-muted)", textDecoration: "none" }}>

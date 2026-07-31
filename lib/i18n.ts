@@ -100,6 +100,12 @@ const dict = {
     chatSend: "Send",
     chatButtonAria: "Chat with us",
     couldNotUpload: "Could not upload attachments.",
+    assistantNavLabel: "AI Assistant",
+    assistantTitle: "Booking Assistant",
+    assistantEmptyState: "Ask me to check availability, book an appointment, or look up a material price.",
+    assistantPlaceholder: "e.g. Book mowing for Tuesday at 9am",
+    assistantThinking: "Thinking...",
+    assistantError: "Something went wrong — please try again.",
   },
   es: {
     tagline: "Corte de césped, bordes y recorte profesional para hogares en tu vecindario.",
@@ -193,6 +199,12 @@ const dict = {
     chatSend: "Enviar",
     chatButtonAria: "Chatea con nosotros",
     couldNotUpload: "No se pudieron subir los archivos adjuntos.",
+    assistantNavLabel: "Asistente IA",
+    assistantTitle: "Asistente de reservas",
+    assistantEmptyState: "Pídeme que revise disponibilidad, reserve una cita o busque el precio de un material.",
+    assistantPlaceholder: "ej. Reservar corte de césped el martes a las 9am",
+    assistantThinking: "Pensando...",
+    assistantError: "Algo salió mal — inténtalo de nuevo.",
   },
 } as const;
 

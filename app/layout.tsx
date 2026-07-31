@@ -1,8 +1,10 @@
 import "./globals.css";
 import ChatWidget from "./components/ChatWidget";
+import AssistantWidget from "./components/AssistantWidget";
 import NavBar from "./components/NavBar";
 import { LanguageProvider } from "./components/LanguageProvider";
 import { ChatProvider } from "./components/ChatContext";
+import { AssistantProvider } from "./components/AssistantContext";
 
 export const metadata = {
   title: "Verdant Lawn Care — Your lawn, handled.",
@@ -15,9 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <LanguageProvider>
           <ChatProvider>
-            <NavBar />
-            {children}
-            <ChatWidget />
+            <AssistantProvider>
+              <NavBar />
+              {children}
+              <ChatWidget />
+              <AssistantWidget />
+            </AssistantProvider>
           </ChatProvider>
         </LanguageProvider>
       </body>
