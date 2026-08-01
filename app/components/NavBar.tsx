@@ -1,9 +1,12 @@
 "use client";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { useChat } from "./ChatContext";
 import { useAssistant } from "./AssistantContext";
 import { LANGUAGES } from "@/lib/i18n";
+
+type Session = { loggedIn: boolean; role?: "admin" | "worker" | "customer"; email?: string; name?: string };
 
 function Logo() {
   return (
@@ -20,6 +23,19 @@ export default function NavBar() {
   const { toggle: toggleAssistant } = useAssistant();
   const pathname = usePathname();
   const showCustomerWidgets = !pathname?.startsWith("/admin") && !pathname?.startsWith("/worker");
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then(setSession)
+      .catch(() => setSession({ loggedIn: false }));
+  }, [pathname]);
+
+  async function logOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/";
+  }
 
   return (
     <nav
@@ -96,31 +112,53 @@ export default function NavBar() {
         {t("navDesign")}
       </a>
 
-      <a
-        href="/login?mode=signup"
-        style={{
-          marginLeft: "auto",
-          color: "var(--text-muted)",
-          textDecoration: "none",
-          fontSize: 14,
-        }}
-      >
-        {t("navSignUp")}
-      </a>
-      <a
-        href="/login"
-        style={{
-          color: "#06130c",
-          background: "var(--accent)",
-          textDecoration: "none",
-          fontSize: 14,
-          fontWeight: 700,
-          padding: "8px 14px",
-          borderRadius: 6,
-        }}
-      >
-        {t("navLogIn")}
-      </a>
+      {showCustomerWidgets && session?.loggedIn ? (
+        <>
+          <a
+            href={session.role === "admin" || session.role === "worker" ? "/admin" : "/"}
+            style={{ marginLeft: "auto", color: "var(--text-muted)", textDecoration: "none", fontSize: 14 }}
+          >
+            {session.name || session.email}
+          </a>
+          <button
+            type="button"
+            onClick={logOut}
+            style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 400, fontSize: 14, padding: 0 }}
+          >
+            Log out
+          </button>
+        </>
+      ) : (
+        showCustomerWidgets && (
+          <>
+            <a
+              href="/login?mode=signup"
+              style={{
+                marginLeft: "auto",
+                color: "var(--text-muted)",
+                textDecoration: "none",
+                fontSize: 14,
+              }}
+            >
+              {t("navSignUp")}
+            </a>
+            <a
+              href="/login"
+              style={{
+                color: "#06130c",
+                background: "var(--accent)",
+                textDecoration: "none",
+                fontSize: 14,
+                fontWeight: 700,
+                padding: "8px 14px",
+                borderRadius: 6,
+              }}
+            >
+              {t("navLogIn")}
+            </a>
+          </>
+        )
+      )}
 
       <select
         value={lang}
@@ -131,6 +169,7 @@ export default function NavBar() {
           marginBottom: 0,
           padding: "6px 10px",
           fontSize: 13,
+          marginLeft: showCustomerWidgets ? 0 : "auto",
         }}
       >
         {LANGUAGES.map((l) => (
