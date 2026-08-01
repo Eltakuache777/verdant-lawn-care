@@ -23,6 +23,7 @@ export default function ChatWidget() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const storedName = localStorage.getItem("chatName");
@@ -228,9 +229,31 @@ export default function ChatWidget() {
                     type="file"
                     accept="image/*,video/*"
                     multiple
-                    onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                    onChange={(e) => {
+                      setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                      e.target.value = "";
+                    }}
                     style={{ display: "none" }}
                   />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    style={{ padding: "8px 10px" }}
+                    aria-label={t("chatCameraAria")}
+                  >
+                    📷
+                  </button>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}

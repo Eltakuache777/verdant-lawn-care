@@ -9,6 +9,8 @@ import { z } from "zod";
 const PatchSchema = z.object({
   status: z.literal("completed").optional(),
   amountPaid: z.number().min(0).optional(),
+  assignedWorkerEmail: z.string().email().nullable().optional(),
+  assignedWorkerName: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -22,15 +24,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const { status, amountPaid } = parsed.data;
+  const { status, amountPaid, assignedWorkerEmail, assignedWorkerName } = parsed.data;
 
-  const data: { status?: string; completedAt?: Date; amountPaid?: number } = {};
+  const data: {
+    status?: string;
+    completedAt?: Date;
+    amountPaid?: number;
+    assignedWorkerEmail?: string | null;
+    assignedWorkerName?: string | null;
+  } = {};
   if (status === "completed") {
     data.status = "completed";
     data.completedAt = new Date();
   }
   if (amountPaid !== undefined) {
     data.amountPaid = amountPaid;
+  }
+  if (assignedWorkerEmail !== undefined) {
+    data.assignedWorkerEmail = assignedWorkerEmail;
+    data.assignedWorkerName = assignedWorkerName ?? null;
   }
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

@@ -1,18 +1,21 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/googleMaps";
-
-const SURFACES = [
-  { key: "driveway", label: "Driveway" },
-  { key: "siding", label: "Siding" },
-  { key: "patio", label: "Patio" },
-  { key: "fence_wash", label: "Fence" },
-];
+import { useLanguage } from "@/app/components/LanguageProvider";
+import AddressInput from "@/app/components/AddressInput";
 
 type LineItem = { key: string; sqft: number; rate: number; cost: number };
 type Result = { lineItems: LineItem[]; subtotal: number; minimumPrice: number; total: number };
 
 export default function PressureEstimatePage() {
+  const { t } = useLanguage();
+  const SURFACES = [
+    { key: "driveway", label: t("surfaceDriveway") },
+    { key: "siding", label: t("surfaceSiding") },
+    { key: "patio", label: t("surfacePatio") },
+    { key: "fence_wash", label: t("surfaceFence") },
+  ];
+
   const [address, setAddress] = useState("");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sqft, setSqft] = useState<Record<string, string>>({});
@@ -35,7 +38,7 @@ export default function PressureEstimatePage() {
 
   async function measureSurface(key: string) {
     if (!address) {
-      setMapError("Enter your address first.");
+      setMapError(t("enterAddressFirst"));
       return;
     }
     setMapError(null);
@@ -49,14 +52,14 @@ export default function PressureEstimatePage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setMapError(data.error ?? "Could not locate that address.");
+          setMapError(data.error ?? t("couldNotLocate"));
           return;
         }
         locationRef.current = data.location;
       }
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        setMapError("Google Maps isn't configured yet.");
+        setMapError(t("mapsNotConfigured"));
         return;
       }
       await loadGoogleMaps(apiKey);
@@ -65,7 +68,7 @@ export default function PressureEstimatePage() {
       setPointCount(0);
       setActiveSurface(key);
     } catch {
-      setMapError("Something went wrong loading the map.");
+      setMapError(t("somethingWentWrong"));
     } finally {
       setMapLoading(false);
     }
@@ -104,7 +107,7 @@ export default function PressureEstimatePage() {
     const google = window.google;
     const polygon = polygonRef.current;
     if (!polygon || polygon.getPath().getLength() < 3 || !activeSurface) {
-      setMapError("Click at least 3 points to outline the surface.");
+      setMapError(t("clickAtLeast3Surface"));
       return;
     }
     const areaSqM = google.maps.geometry.spherical.computeArea(polygon.getPath());
@@ -131,7 +134,7 @@ export default function PressureEstimatePage() {
     }));
 
     if (surfaces.length === 0) {
-      setError("Select at least one surface and enter its square footage.");
+      setError(t("selectSurfaceFirst"));
       return;
     }
 
@@ -144,7 +147,7 @@ export default function PressureEstimatePage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong.");
+        setError(data.error ?? t("somethingWentWrong"));
       } else {
         setResult(data);
       }
@@ -156,12 +159,12 @@ export default function PressureEstimatePage() {
   return (
     <main>
       <div className="card">
-        <h1>Pressure washing estimate</h1>
+        <h1>{t("pressureEstimateTitle")}</h1>
         <form onSubmit={getEstimate}>
-          <label>Address (optional — lets you measure surfaces on a map)</label>
-          <input value={address} onChange={(e) => setAddress(e.target.value)} />
+          <label>{t("addressOptionalSurfaces")}</label>
+          <AddressInput value={address} onChange={setAddress} />
 
-          <label>Surfaces</label>
+          <label>{t("surfacesLabel")}</label>
           {SURFACES.map((s) => (
             <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
               <input
@@ -186,7 +189,7 @@ export default function PressureEstimatePage() {
                 disabled={mapLoading}
                 style={{ fontSize: 12, padding: "8px 10px" }}
               >
-                Measure via map
+                {t("measureViaMapBtn")}
               </button>
             </div>
           ))}
@@ -196,10 +199,10 @@ export default function PressureEstimatePage() {
           {activeSurface && (
             <div style={{ marginTop: 4, marginBottom: 16 }}>
               <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                Outlining <strong style={{ color: "var(--text)" }}>
+                {t("outlining")} <strong style={{ color: "var(--text)" }}>
                   {SURFACES.find((s) => s.key === activeSurface)?.label}
                 </strong>{" "}
-                — click points around its edges ({pointCount} point{pointCount === 1 ? "" : "s"} placed).
+                — {t("clickPointsSurface")} ({t("pointsPlaced", { count: pointCount, s: pointCount === 1 ? "" : "s" })})
               </p>
               <div
                 ref={mapRef}
@@ -207,17 +210,17 @@ export default function PressureEstimatePage() {
               />
               <div style={{ display: "flex", gap: 10 }}>
                 <button type="button" onClick={finishMeasuring} disabled={pointCount < 3}>
-                  Finish measuring
+                  {t("finishMeasuring")}
                 </button>
                 <button type="button" onClick={clearActivePolygon} disabled={pointCount === 0}>
-                  Clear
+                  {t("clear")}
                 </button>
               </div>
             </div>
           )}
 
           <button type="submit" disabled={loading} style={{ marginTop: 10 }}>
-            {loading ? "Calculating..." : "Get estimate"}
+            {loading ? t("calculatingBtn") : t("getEstimateBtn")}
           </button>
         </form>
 
@@ -225,17 +228,27 @@ export default function PressureEstimatePage() {
 
         {result && (
           <div style={{ marginTop: 16 }}>
-            <h3>Estimate</h3>
+            <h3>{t("estimateHeading")}</h3>
             {result.lineItems.map((li) => (
               <p key={li.key}>
-                {SURFACES.find((s) => s.key === li.key)?.label}: {li.sqft} sq ft @ ${li.rate}/sq ft = $
-                {li.cost}
+                {t("pressureLineItem", {
+                  surface: SURFACES.find((s) => s.key === li.key)?.label ?? "",
+                  sqft: String(li.sqft),
+                  rate: String(li.rate),
+                  cost: String(li.cost),
+                })}
               </p>
             ))}
-            <p>Subtotal: ${result.subtotal}</p>
-            <p>Minimum job price: ${result.minimumPrice}</p>
             <p>
-              <strong>Total: ${result.total}</strong>
+              {t("subtotalLabel")}: ${result.subtotal}
+            </p>
+            <p>
+              {t("minimumJobPrice")}: ${result.minimumPrice}
+            </p>
+            <p>
+              <strong>
+                {t("totalLabel")}: ${result.total}
+              </strong>
             </p>
           </div>
         )}

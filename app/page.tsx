@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/googleMaps";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import { useLanguage } from "./components/LanguageProvider";
+import AddressInput from "./components/AddressInput";
 
 type ServiceRow = { name: string; basePrice: number };
 type PlanKey = "weekly" | "biweekly" | "monthly" | "one_time";
@@ -45,6 +46,7 @@ export default function BookPage() {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -117,15 +119,6 @@ export default function BookPage() {
       setPressureSqft({});
     }
   }
-
-  const estimatedTotal = services
-    .filter((s) => selectedServices.includes(s.name))
-    .reduce((sum, s) => {
-      if (s.name === "Mowing" && mowingEstimate) return sum + (mowingEstimate.total ?? s.basePrice);
-      if (s.name === "Fence Building" && fenceEstimate) return sum + fenceEstimate.total;
-      if (s.name === "Pressure Washing" && pressureEstimate) return sum + pressureEstimate.total;
-      return sum + s.basePrice;
-    }, 0);
 
   async function getLawnEstimate() {
     if (!address) {
@@ -444,6 +437,7 @@ export default function BookPage() {
         body: JSON.stringify({
           customerName: name,
           customerEmail: email,
+          customerPhone: phone,
           services: selectedServices,
           planFrequency: plan ?? undefined,
           address,
@@ -484,10 +478,9 @@ export default function BookPage() {
                 checked={selectedServices.includes(s.name)}
                 onChange={() => toggleService(s.name)}
               />
-              {s.name} — {t("startingAt")} ${s.basePrice}
+              {s.name}
             </label>
           ))}
-          {selectedServices.length > 0 && <p>{t("estimatedTotal", { amount: estimatedTotal })}</p>}
 
           <label>{t("nameLabel")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required />
@@ -495,8 +488,11 @@ export default function BookPage() {
           <label>{t("emailLabel")}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
 
+          <label>{t("phoneLabel")}</label>
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+
           <label>{t("addressLabel")}</label>
-          <input value={address} onChange={(e) => setAddress(e.target.value)} required />
+          <AddressInput value={address} onChange={setAddress} required />
 
           {mowingSelected && (
             <div style={{ marginTop: -4, marginBottom: 16 }}>

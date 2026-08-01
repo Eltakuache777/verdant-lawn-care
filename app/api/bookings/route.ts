@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendBookingConfirmation } from "@/lib/email";
+import { sendBookingConfirmation, sendNewBookingAlert } from "@/lib/email";
 import { z } from "zod";
 
 const EMERGENCY_FEE = 15; // adjust to $10-$20 as you decide
@@ -8,7 +8,7 @@ const EMERGENCY_FEE = 15; // adjust to $10-$20 as you decide
 const BookingSchema = z.object({
   customerName: z.string().min(1),
   customerEmail: z.string().email(),
-  customerPhone: z.string().optional(),
+  customerPhone: z.string().min(1),
   services: z.array(z.string().min(1)).min(1),
   planFrequency: z.enum(["weekly", "biweekly", "monthly", "one_time"]).optional(),
   address: z.string().min(3),
@@ -65,6 +65,22 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("Failed to send booking confirmation email:", err);
+  }
+
+  try {
+    const staff = await prisma.worker.findMany({ select: { email: true } });
+    await sendNewBookingAlert({
+      staffEmails: staff.map((w) => w.email),
+      customerName: customer.name,
+      customerEmail: customer.email,
+      customerPhone: customer.phone,
+      services: booking.services,
+      address: booking.address,
+      scheduledFor: booking.scheduledFor,
+      totalPrice: booking.totalPrice,
+    });
+  } catch (err) {
+    console.error("Failed to send new booking alert:", err);
   }
 
   return NextResponse.json(booking, { status: 201 });

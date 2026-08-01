@@ -1,12 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 
-// Admin-only (see middleware.ts). A completed booking can bundle multiple
-// services under one amountPaid (e.g. "Mowing + Bin Cleaning" paid as $65
-// total) — there's no itemized per-service payment, so each service's share
-// of that booking's revenue is allocated proportionally to its current base
-// price relative to the other services in the same booking.
-export async function GET() {
+// Admin sees the full business report. Workers only see their own logged
+// payments — the owner's revenue/profit numbers aren't any employee's business.
+export async function GET(req: NextRequest) {
+  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+
+  if (session?.role !== "admin") {
+    const myPayments = session?.email
+      ? await prisma.workerPayment.findMany({
+          where: { workerEmail: session.email },
+          orderBy: { paidAt: "desc" },
+        })
+      : [];
+    const myTotalPaid = myPayments.reduce((sum, p) => sum + p.amount, 0);
+    return NextResponse.json({ role: "worker", myPayments, myTotalPaid });
+  }
+
   const [completed, services, workerPayments] = await Promise.all([
     prisma.booking.findMany({ where: { status: "completed", amountPaid: { not: null } } }),
     prisma.service.findMany(),
@@ -33,6 +44,7 @@ export async function GET() {
   const totalPaidToWorkers = workerPayments.reduce((sum, p) => sum + p.amount, 0);
 
   return NextResponse.json({
+    role: "admin",
     perService: Array.from(perService.entries()).map(([name, v]) => ({
       name,
       count: v.count,

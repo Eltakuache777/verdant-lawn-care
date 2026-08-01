@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/app/components/LanguageProvider";
 
 type MaterialRow = { name: string; unit: string; price: number };
 
 export default function MaterialsPage() {
+  const { t } = useLanguage();
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
 
   useEffect(() => {
@@ -16,10 +18,9 @@ export default function MaterialsPage() {
     <main>
       <div className="card">
         <p className="brand-label">Verdant Lawn Care</p>
-        <h1>Material prices</h1>
+        <h1>{t("materialsTitle")}</h1>
         <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>
-          Reference pricing for common landscaping materials. Ask us in chat for a full project
-          quote — final pricing depends on quantity and site conditions.
+          {t("materialsSubtitle")}
         </p>
         {materials.map((m) => (
           <div
@@ -34,7 +35,7 @@ export default function MaterialsPage() {
             <span>{m.name}</span>
             <span className="accent" style={{ fontWeight: 700 }}>
               ${m.price.toFixed(2)}
-              <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {m.unit}</span>
+              <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> {t("perUnitPrefix")} {m.unit}</span>
             </span>
           </div>
         ))}

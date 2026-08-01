@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useLanguage } from "@/app/components/LanguageProvider";
 
 type QuoteRequest = {
   id: string;
@@ -11,6 +12,7 @@ type QuoteRequest = {
 };
 
 function DesignSuccessContent() {
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const quoteRequestId = searchParams.get("qr");
   const [quote, setQuote] = useState<QuoteRequest | null>(null);
@@ -18,7 +20,7 @@ function DesignSuccessContent() {
 
   useEffect(() => {
     if (!quoteRequestId) {
-      setError("Missing quote request.");
+      setError(t("missingQuoteRequest"));
       return;
     }
     fetch("/api/quote/generate", {
@@ -29,32 +31,31 @@ function DesignSuccessContent() {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) {
-          setError(data.error ?? "Something went wrong generating your designs.");
+          setError(data.error ?? t("designGenerationError"));
           return;
         }
         setQuote(data);
       })
-      .catch(() => setError("Something went wrong generating your designs."));
+      .catch(() => setError(t("designGenerationError")));
   }, [quoteRequestId]);
 
   return (
     <main>
       <div className="card">
         <p className="brand-label">Verdant Lawn Care</p>
-        <h1>Your design concepts</h1>
+        <h1>{t("yourDesignConcepts")}</h1>
 
         {error && <p style={{ color: "var(--gold)" }}>{error}</p>}
 
         {!error && !quote && (
-          <p style={{ color: "var(--text-muted)" }}>
-            Payment confirmed — generating your design concepts now. This can take a few minutes
-            for larger packages, don't close this page.
-          </p>
+          <p style={{ color: "var(--text-muted)" }}>{t("generatingDesigns")}</p>
         )}
 
         {quote && quote.conceptUrls.length > 0 && (
           <>
-            <p className="accent">✓ {quote.conceptUrls.length} design concepts ready</p>
+            <p className="accent">
+              ✓ {quote.conceptUrls.length} {t("designConceptsReady")}
+            </p>
             <div
               style={{
                 display: "grid",
@@ -74,8 +75,7 @@ function DesignSuccessContent() {
               ))}
             </div>
             <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 16 }}>
-              Want changes, a supply estimate, or to book the work? Message us in chat with which
-              concept you like.
+              {t("designChangesNote")}
             </p>
           </>
         )}

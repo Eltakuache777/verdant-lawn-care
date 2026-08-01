@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import { DESIGN_TIERS } from "@/lib/designTiers";
+import PasswordInput from "./PasswordInput";
 
 type ServiceRow = { name: string; basePrice: number };
 type MaterialRow = { name: string; unit: string; price: number };
@@ -14,15 +15,25 @@ type Booking = {
   totalPrice: number;
   status: string;
   amountPaid: number | null;
+  assignedWorkerEmail: string | null;
+  assignedWorkerName: string | null;
+  createdAt: string;
   customer: { name: string; email: string; phone: string | null };
 };
-type ReportData = {
-  perService: { name: string; count: number; revenue: number }[];
-  totalRevenue: number;
-  totalPaidToWorkers: number;
-  net: number;
-  workerPayments: { id: string; workerEmail: string; workerName: string; amount: number; note: string | null; paidAt: string }[];
-};
+type ReportData =
+  | {
+      role: "admin";
+      perService: { name: string; count: number; revenue: number }[];
+      totalRevenue: number;
+      totalPaidToWorkers: number;
+      net: number;
+      workerPayments: { id: string; workerEmail: string; workerName: string; amount: number; note: string | null; paidAt: string }[];
+    }
+  | {
+      role: "worker";
+      myPayments: { id: string; workerEmail: string; workerName: string; amount: number; note: string | null; paidAt: string }[];
+      myTotalPaid: number;
+    };
 type Thread = {
   customerEmail: string;
   customerName: string;
@@ -31,7 +42,7 @@ type Thread = {
   lastAt: string;
 };
 type ChatMsg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
-type WorkerRow = { id: string; email: string; name: string | null; addedAt: string };
+type WorkerRow = { id: string; email: string; name: string | null; isAdmin: boolean; addedAt: string };
 type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers";
 
 function isVideoUrl(url: string) {
@@ -46,9 +57,19 @@ const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "design", icon: "🎨", label: "Design" },
   { key: "workers", icon: "👥", label: "Workers" },
 ];
-// Shared by /admin and /worker — the owner and workers have equal, full access.
-export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
+// Shared by /admin and /worker — the owner and workers have equal, full access
+// (except reports visibility — see ReportData above).
+export default function AdminShell({
+  loggedInAs,
+  role,
+  myEmail,
+}: {
+  loggedInAs?: string;
+  role?: "admin" | "worker";
+  myEmail?: string;
+}) {
   const [view, setView] = useState<View>("schedule");
+  const [newBookingCount, setNewBookingCount] = useState(0);
 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -73,8 +94,16 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
   const [workersError, setWorkersError] = useState<string | null>(null);
   const [newWorkerEmail, setNewWorkerEmail] = useState("");
   const [newWorkerName, setNewWorkerName] = useState("");
+  const [newWorkerIsAdmin, setNewWorkerIsAdmin] = useState(false);
   const [addingWorker, setAddingWorker] = useState(false);
   const [addWorkerStatus, setAddWorkerStatus] = useState<string | null>(null);
+
+  // Set/change your own password so you don't need a new email code every time.
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
+  const [settingPassword, setSettingPassword] = useState(false);
 
   // Free AI design generation for the owner — always the highest tier, no Stripe checkout.
   const [designName, setDesignName] = useState("");
@@ -95,7 +124,64 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
   const [sendingReply, setSendingReply] = useState(false);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
 
+  const lastSeenBookingRef = useRef<string | null>(null);
+  const seenAnyBookingsRef = useRef(false);
+  const lastSeenStorageKey = `vlc_lastSeenBooking_${myEmail || "staff"}`;
+
+  function loadBookings(isPoll = false) {
+    fetch("/api/bookings")
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load bookings");
+        return r.json();
+      })
+      .then((data: Booking[]) => {
+        setBookings(data);
+        if (!seenAnyBookingsRef.current) {
+          // First load: don't notify for bookings that already existed before we started watching.
+          seenAnyBookingsRef.current = true;
+          const newest = data.reduce((max, b) => (b.createdAt > max ? b.createdAt : max), lastSeenBookingRef.current ?? "");
+          if (newest) {
+            lastSeenBookingRef.current = newest;
+            localStorage.setItem(lastSeenStorageKey, newest);
+          }
+          return;
+        }
+        if (!isPoll) return;
+        const sinceKey = lastSeenBookingRef.current ?? "";
+        const freshOnes = data.filter((b) => b.createdAt > sinceKey);
+        if (freshOnes.length > 0) {
+          setNewBookingCount((c) => c + freshOnes.length);
+          notifyNewBookings(freshOnes);
+          const newest = freshOnes.reduce((max, b) => (b.createdAt > max ? b.createdAt : max), sinceKey);
+          lastSeenBookingRef.current = newest;
+          localStorage.setItem(lastSeenStorageKey, newest);
+        }
+      })
+      .catch(() => setBookingsError("Could not load the schedule."));
+  }
+
+  function notifyNewBookings(fresh: Booking[]) {
+    const text =
+      fresh.length === 1
+        ? `New booking: ${fresh[0].customer.name} — ${fresh[0].services.join(", ")}`
+        : `${fresh.length} new bookings came in`;
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification("Verdant Lawn Care", { body: text });
+      } catch {
+        // ignore — some webviews (e.g. the Android app) don't support this
+      }
+    }
+  }
+
   useEffect(() => {
+    lastSeenBookingRef.current = localStorage.getItem(lastSeenStorageKey);
+    if (lastSeenBookingRef.current) seenAnyBookingsRef.current = true;
+
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
     fetch("/api/services")
       .then((r) => r.json())
       .then(setServices);
@@ -104,17 +190,13 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
       .then((r) => r.json())
       .then(setMaterials);
 
-    fetch("/api/bookings")
-      .then((r) => {
-        if (!r.ok) throw new Error("Could not load bookings");
-        return r.json();
-      })
-      .then(setBookings)
-      .catch(() => setBookingsError("Could not load the schedule."));
-
+    loadBookings(false);
     loadThreads();
     loadReport();
     loadWorkers();
+
+    const interval = setInterval(() => loadBookings(true), 25000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,12 +231,17 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
       const res = await fetch("/api/workers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newWorkerEmail.trim(), name: newWorkerName.trim() || undefined }),
+        body: JSON.stringify({
+          email: newWorkerEmail.trim(),
+          name: newWorkerName.trim() || undefined,
+          isAdmin: newWorkerIsAdmin,
+        }),
       });
       if (res.ok) {
         setAddWorkerStatus(`✓ Login code sent to ${newWorkerEmail.trim()}`);
         setNewWorkerEmail("");
         setNewWorkerName("");
+        setNewWorkerIsAdmin(false);
         loadWorkers();
       } else {
         const err = await res.json();
@@ -170,9 +257,50 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
     if (res.ok) loadWorkers();
   }
 
+  async function toggleWorkerAdmin(w: WorkerRow) {
+    const res = await fetch("/api/workers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: w.email, name: w.name || undefined, isAdmin: !w.isAdmin }),
+    });
+    if (res.ok) loadWorkers();
+  }
+
   async function logOut() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  }
+
+  async function submitSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordStatus(null);
+    if (newPassword.length < 6) {
+      setPasswordStatus("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordStatus("New passwords don't match.");
+      return;
+    }
+    setSettingPassword(true);
+    try {
+      const res = await fetch("/api/auth/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: currentPassword || undefined, password: newPassword }),
+      });
+      if (res.ok) {
+        setPasswordStatus("✓ Password set — you can log in with it next time.");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+      } else {
+        const err = await res.json();
+        setPasswordStatus(err.error ?? "Could not set password.");
+      }
+    } finally {
+      setSettingPassword(false);
+    }
   }
 
   async function markCompleted(id: string) {
@@ -189,6 +317,22 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
       }
     } finally {
       setCompletingId(null);
+    }
+  }
+
+  async function assignWorker(id: string, email: string) {
+    const worker = workers.find((w) => w.email === email);
+    const res = await fetch(`/api/bookings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assignedWorkerEmail: email || null,
+        assignedWorkerName: email ? worker?.name || email : null,
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...updated } : b)));
     }
   }
 
@@ -393,8 +537,12 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
         {RAIL_ITEMS.map((item) => (
           <button
             key={item.key}
-            onClick={() => setView(item.key)}
+            onClick={() => {
+              setView(item.key);
+              if (item.key === "schedule" && newBookingCount > 0) setNewBookingCount(0);
+            }}
             style={{
+              position: "relative",
               width: 56,
               height: 56,
               display: "flex",
@@ -412,6 +560,28 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
           >
             <span style={{ fontSize: 20 }}>{item.icon}</span>
             <span style={{ fontSize: 10 }}>{item.label}</span>
+            {item.key === "schedule" && newBookingCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  minWidth: 16,
+                  height: 16,
+                  padding: "0 3px",
+                  borderRadius: 8,
+                  background: "var(--gold)",
+                  color: "#1a1206",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {newBookingCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -447,8 +617,8 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
         </div>
         <div style={{ flex: 1, overflow: "hidden" }}>
           {view === "schedule" && (
-          <div style={{ display: "flex", height: "100%" }}>
-            <div style={{ width: "50%", borderRight: "1px solid var(--border)", padding: 20, overflowY: "auto" }}>
+          <div className="admin-split">
+            <div className="admin-split-pane admin-split-pane-bordered" style={{ padding: 20, overflowY: "auto" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <button
                   type="button"
@@ -506,7 +676,7 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
               ))}
             </div>
 
-            <div style={{ width: "50%", padding: 20, overflowY: "auto" }}>
+            <div className="admin-split-pane" style={{ padding: 20, overflowY: "auto" }}>
               <h3 style={{ marginTop: 0 }}>
                 {new Date(selectedDay + "T00:00:00").toLocaleDateString("en-US", {
                   weekday: "long",
@@ -538,6 +708,22 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
                       {b.status === "completed" ? "✓ completed" : b.status}
                     </span>
                   </p>
+
+                  <div style={{ margin: "6px 0", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Assigned to:</span>
+                    <select
+                      value={b.assignedWorkerEmail ?? ""}
+                      onChange={(e) => assignWorker(b.id, e.target.value)}
+                      style={{ marginBottom: 0, fontSize: 12, padding: "4px 6px", width: "auto" }}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {workers.map((w) => (
+                        <option key={w.id} value={w.email}>
+                          {w.name || w.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   {b.status !== "completed" && (
                     <button
@@ -585,8 +771,8 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
         )}
 
         {view === "messages" && (
-          <div style={{ display: "flex", height: "100%" }}>
-            <div style={{ width: "50%", borderRight: "1px solid var(--border)", padding: 20, overflowY: "auto" }}>
+          <div className="admin-split">
+            <div className="admin-split-pane admin-split-pane-bordered" style={{ padding: 20, overflowY: "auto" }}>
               <h3 style={{ marginTop: 0 }}>Chat</h3>
               {threadsError && <p>{threadsError}</p>}
               {!threadsError && threads.length === 0 && (
@@ -644,7 +830,7 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
               ))}
             </div>
 
-            <div style={{ width: "50%", display: "flex", flexDirection: "column" }}>
+            <div className="admin-split-pane" style={{ display: "flex", flexDirection: "column", minHeight: 320 }}>
               {!selectedEmail ? (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
                   Select a conversation
@@ -770,13 +956,43 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
           </div>
         )}
 
-        {view === "reports" && (
-          <div style={{ display: "flex", height: "100%" }}>
-            <div style={{ width: "50%", borderRight: "1px solid var(--border)", padding: 20, overflowY: "auto" }}>
+        {view === "reports" && report?.role === "worker" && (
+          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+            <h3 style={{ marginTop: 0 }}>Your earnings</h3>
+            {reportError && <p>{reportError}</p>}
+            {report.myPayments.length === 0 && (
+              <p style={{ color: "var(--text-muted)" }}>No payments logged for you yet.</p>
+            )}
+            {report.myPayments.length > 0 && (
+              <div style={{ marginTop: 8, maxWidth: 480 }}>
+                {report.myPayments.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}
+                  >
+                    <span>
+                      {p.note && <span style={{ color: "var(--text-muted)" }}>{p.note} — </span>}
+                      <span style={{ color: "var(--text-muted)" }}>{new Date(p.paidAt).toLocaleDateString()}</span>
+                    </span>
+                    <strong>${p.amount.toLocaleString()}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--border)", fontSize: 18, maxWidth: 480 }}>
+              <strong>Total earned</strong>
+              <strong className="accent">${report.myTotalPaid.toLocaleString()}</strong>
+            </p>
+          </div>
+        )}
+
+        {view === "reports" && (!report || report.role === "admin") && (
+          <div className="admin-split">
+            <div className="admin-split-pane admin-split-pane-bordered" style={{ padding: 20, overflowY: "auto" }}>
               {reportError && <p>{reportError}</p>}
               {!report && !reportError && <p style={{ color: "var(--text-muted)" }}>Loading...</p>}
 
-              {report && (
+              {report && report.role === "admin" && (
                 <>
                   <h3 style={{ marginTop: 0 }}>Earnings by service</h3>
                   {report.perService.length === 0 && (
@@ -816,7 +1032,7 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
               )}
             </div>
 
-            <div style={{ width: "50%", padding: 20, overflowY: "auto" }}>
+            <div className="admin-split-pane" style={{ padding: 20, overflowY: "auto" }}>
               <h3 style={{ marginTop: 0 }}>Worker payments</h3>
               <form onSubmit={submitWorkerPayment} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 160px" }}>
@@ -853,10 +1069,10 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
                 </button>
               </form>
 
-              {report && report.workerPayments.length === 0 && (
+              {report && report.role === "admin" && report.workerPayments.length === 0 && (
                 <p style={{ color: "var(--text-muted)" }}>No payments logged yet.</p>
               )}
-              {report && report.workerPayments.length > 0 && (
+              {report && report.role === "admin" && report.workerPayments.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   {report.workerPayments.map((p) => (
                     <div
@@ -873,7 +1089,7 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
                   ))}
                 </div>
               )}
-              {report && (
+              {report && report.role === "admin" && (
                 <p style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                   <strong>Total paid to workers</strong>
                   <strong>${report.totalPaidToWorkers.toLocaleString()}</strong>
@@ -942,6 +1158,37 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
 
         {view === "workers" && (
           <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+            <div className="card" style={{ margin: "0 0 24px" }}>
+              <h1>Your password</h1>
+              <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
+                Set a password so you can log in without waiting on an email code every time. If you already
+                have one, enter it below to change it.
+              </p>
+              <form onSubmit={submitSetPassword}>
+                <label>Current password (leave blank if you haven't set one yet)</label>
+                <PasswordInput value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" style={{ marginBottom: 14 }} />
+                <label>New password</label>
+                <PasswordInput
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="At least 6 characters"
+                  autoComplete="new-password"
+                  style={{ marginBottom: 14 }}
+                />
+                <label>Confirm new password</label>
+                <PasswordInput
+                  value={confirmNewPassword}
+                  onChange={setConfirmNewPassword}
+                  autoComplete="new-password"
+                  style={{ marginBottom: 14 }}
+                />
+                <button type="submit" disabled={settingPassword}>
+                  {settingPassword ? "Saving..." : "Set password"}
+                </button>
+              </form>
+              {passwordStatus && <p className="accent">{passwordStatus}</p>}
+            </div>
+
             <div className="card" style={{ margin: 0 }}>
               <h1>Manage workers</h1>
               <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
@@ -964,6 +1211,15 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
                   <label>Name (optional)</label>
                   <input value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} placeholder="Their name" />
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, marginBottom: 14 }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: "auto", margin: 0 }}
+                    checked={newWorkerIsAdmin}
+                    onChange={(e) => setNewWorkerIsAdmin(e.target.checked)}
+                  />
+                  Make admin
+                </label>
                 <button type="submit" disabled={addingWorker} style={{ marginBottom: 14 }}>
                   {addingWorker ? "Adding..." : "Add & send code"}
                 </button>
@@ -987,18 +1243,34 @@ export default function AdminShell({ loggedInAs }: { loggedInAs?: string }) {
                     }}
                   >
                     <div>
-                      <p style={{ margin: 0, fontWeight: 700 }}>{w.name || w.email}</p>
+                      <p style={{ margin: 0, fontWeight: 700 }}>
+                        {w.name || w.email}
+                        {w.isAdmin && (
+                          <span className="accent" style={{ fontSize: 11, fontWeight: 700, marginLeft: 8 }}>
+                            ADMIN
+                          </span>
+                        )}
+                      </p>
                       {w.name && (
                         <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{w.email}</p>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeWorker(w.id)}
-                      style={{ background: "transparent", color: "var(--gold)", fontWeight: 600, fontSize: 13 }}
-                    >
-                      Remove
-                    </button>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleWorkerAdmin(w)}
+                        style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}
+                      >
+                        {w.isAdmin ? "Remove admin" : "Make admin"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeWorker(w.id)}
+                        style={{ background: "transparent", color: "var(--gold)", fontWeight: 600, fontSize: 13 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

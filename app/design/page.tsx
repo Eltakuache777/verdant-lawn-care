@@ -1,8 +1,22 @@
 "use client";
 import { useRef, useState } from "react";
 import { DESIGN_TIERS, DesignTierKey } from "@/lib/designTiers";
+import { useLanguage } from "@/app/components/LanguageProvider";
+import type { DictKey } from "@/lib/i18n";
+
+const TIER_LABEL_KEYS: Record<DesignTierKey, DictKey> = {
+  standard: "designTierLabelStandard",
+  better: "designTierLabelBetter",
+  highest: "designTierLabelHighest",
+};
+const TIER_NOTE_KEYS: Record<DesignTierKey, DictKey> = {
+  standard: "designTierNoteStandard",
+  better: "designTierNoteBetter",
+  highest: "designTierNoteHighest",
+};
 
 export default function DesignPage() {
+  const { t } = useLanguage();
   const [tier, setTier] = useState<DesignTierKey>("standard");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,7 +32,7 @@ export default function DesignPage() {
 
     const photoFiles = files.filter((f) => f.type.startsWith("image/"));
     if (photoFiles.length === 0) {
-      setError("Attach at least one photo of the area you want redesigned.");
+      setError(t("attachAtLeastOnePhoto"));
       return;
     }
 
@@ -29,7 +43,7 @@ export default function DesignPage() {
       const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
       if (!uploadRes.ok) {
         const err = await uploadRes.json();
-        setError(err.error ?? "Could not upload your photos/videos.");
+        setError(err.error ?? t("couldNotUploadPhotos"));
         return;
       }
       const { urls } = await uploadRes.json();
@@ -47,7 +61,7 @@ export default function DesignPage() {
       });
       if (!checkoutRes.ok) {
         const err = await checkoutRes.json();
-        setError(err.error ?? "Could not start checkout.");
+        setError(err.error ?? t("couldNotStartCheckout"));
         return;
       }
       const { checkoutUrl } = await checkoutRes.json();
@@ -61,17 +75,17 @@ export default function DesignPage() {
     <main>
       <div className="card">
         <p className="brand-label">Verdant Lawn Care</p>
-        <h1>AI landscaping design concepts</h1>
+        <h1>{t("designPageTitle")}</h1>
         <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>
-          Send a photo of your yard and describe what you want — our AI designer turns it into
-          real design concepts you can review. Videos help us understand the space but only
-          photos are used to generate designs.
+          {t("designPageSubtitle")}
         </p>
 
         <form onSubmit={startCheckout}>
-          <label>Package</label>
+          <label>{t("packageLabel")}</label>
           {(Object.keys(DESIGN_TIERS) as DesignTierKey[]).map((key) => {
-            const t = DESIGN_TIERS[key];
+            const tierInfo = DESIGN_TIERS[key];
+            const tierLabelKey = TIER_LABEL_KEYS[key];
+            const tierNoteKey = TIER_NOTE_KEYS[key];
             return (
               <label
                 key={key}
@@ -96,29 +110,29 @@ export default function DesignPage() {
                     onChange={() => setTier(key)}
                   />
                   <span>
-                    <strong>{t.label}</strong>
+                    <strong>{t(tierLabelKey)}</strong>
                     <br />
-                    <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{t.note}</span>
+                    <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{t(tierNoteKey)}</span>
                   </span>
                 </span>
                 <span className="accent" style={{ fontWeight: 700 }}>
-                  ${t.price}
+                  ${tierInfo.price}
                 </span>
               </label>
             );
           })}
 
-          <label>Name</label>
+          <label>{t("nameLabel")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required />
 
-          <label>Email</label>
+          <label>{t("emailLabel")}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
 
-          <label>Describe what you want</label>
+          <label>{t("describeWhatYouWant")}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="e.g. A stone patio with a fire pit, low-maintenance native plants along the fence..."
+            placeholder={t("describePlaceholder")}
             rows={4}
             required
             style={{
@@ -134,7 +148,7 @@ export default function DesignPage() {
             }}
           />
 
-          <label>Photos &amp; videos of the area</label>
+          <label>{t("photosVideosLabel")}</label>
           <input
             ref={fileInputRef}
             type="file"
@@ -143,13 +157,15 @@ export default function DesignPage() {
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
           />
           {files.length > 0 && (
-            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{files.length} file(s) selected</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              {files.length} {t("filesSelected")}
+            </p>
           )}
 
           {error && <p style={{ color: "var(--gold)" }}>{error}</p>}
 
           <button type="submit" disabled={submitting}>
-            {submitting ? "Preparing checkout..." : `Continue to payment — $${DESIGN_TIERS[tier].price}`}
+            {submitting ? t("preparingCheckoutBtn") : `${t("continueToPaymentBtn")} — $${DESIGN_TIERS[tier].price}`}
           </button>
         </form>
       </div>

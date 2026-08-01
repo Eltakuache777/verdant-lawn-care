@@ -5,5 +5,11 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 export default async function WorkerPage() {
   const session = await verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
   const loggedInAs = session?.role === "admin" ? "Admin" : session?.name || session?.email;
-  return <AdminShell loggedInAs={loggedInAs} />;
+  return (
+    <AdminShell
+      loggedInAs={loggedInAs}
+      role={session?.role === "admin" ? "admin" : "worker"}
+      myEmail={session?.email}
+    />
+  );
 }

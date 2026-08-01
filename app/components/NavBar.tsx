@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { useChat } from "./ChatContext";
@@ -24,6 +24,8 @@ export default function NavBar() {
   const pathname = usePathname();
   const showCustomerWidgets = !pathname?.startsWith("/admin") && !pathname?.startsWith("/worker");
   const [session, setSession] = useState<Session | null>(null);
+  const [estimatesOpen, setEstimatesOpen] = useState(false);
+  const estimatesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -31,6 +33,16 @@ export default function NavBar() {
       .then(setSession)
       .catch(() => setSession({ loggedIn: false }));
   }, [pathname]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (estimatesRef.current && !estimatesRef.current.contains(e.target as Node)) {
+        setEstimatesOpen(false);
+      }
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
 
   async function logOut() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -69,12 +81,61 @@ export default function NavBar() {
       <a href="/" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navBook")}
       </a>
-      <a href="/estimate/fence" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-        {t("navFence")}
-      </a>
-      <a href="/estimate/pressure" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-        {t("navPressure")}
-      </a>
+      <div ref={estimatesRef} style={{ position: "relative" }}>
+        <button
+          type="button"
+          onClick={() => setEstimatesOpen((v) => !v)}
+          style={{
+            background: "transparent",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+            fontSize: 16,
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          {t("navEstimates")} <span style={{ fontSize: 11 }}>▾</span>
+        </button>
+        {estimatesOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              left: 0,
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              minWidth: 200,
+              zIndex: 20,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+              overflow: "hidden",
+            }}
+          >
+            {[
+              { href: "/estimate/mowing", label: t("navMowing") },
+              { href: "/estimate/fence", label: t("navFence") },
+              { href: "/estimate/pressure", label: t("navPressure") },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={() => setEstimatesOpen(false)}
+                style={{
+                  display: "block",
+                  padding: "10px 14px",
+                  color: "var(--text)",
+                  textDecoration: "none",
+                  fontSize: 14,
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
       {showCustomerWidgets && (
         <button
           type="button"

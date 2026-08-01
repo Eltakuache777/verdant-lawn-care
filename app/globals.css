@@ -59,3 +59,38 @@ label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px; c
   font-weight: 700;
   text-transform: uppercase;
 }
+
+/* Admin dashboard two-pane views (Schedule, Messages, Reports) — side by side on
+   desktop, stacked top-to-bottom on narrow screens so nothing gets cramped. */
+.admin-split {
+  display: flex;
+  height: 100%;
+}
+.admin-split-pane {
+  width: 50%;
+}
+.admin-split-pane-bordered {
+  border-right: 1px solid var(--border);
+}
+@media (max-width: 720px) {
+  .admin-split {
+    flex-direction: column;
+    height: auto;
+    overflow-y: auto;
+  }
+  .admin-split-pane {
+    width: 100%;
+  }
+  .admin-split-pane-bordered {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+/* Google Places autocomplete dropdown (native Google-styled suggestion list) */
+.pac-container {
+  border-radius: 8px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  font-family: system-ui, sans-serif;
+}

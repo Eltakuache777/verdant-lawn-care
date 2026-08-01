@@ -4,5 +4,11 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 
 export default async function AdminPage() {
   const session = await verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
-  return <AdminShell loggedInAs={session?.name || session?.email} />;
+  return (
+    <AdminShell
+      loggedInAs={session?.name || session?.email}
+      role={session?.role === "admin" ? "admin" : "worker"}
+      myEmail={session?.email}
+    />
+  );
 }

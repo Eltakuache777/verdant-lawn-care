@@ -1,12 +1,8 @@
 "use client";
 import { useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/googleMaps";
-
-const MATERIALS = [
-  { value: "chain_link", label: "Chain Link" },
-  { value: "wood", label: "Wood" },
-  { value: "vinyl", label: "Vinyl" },
-];
+import { useLanguage } from "@/app/components/LanguageProvider";
+import AddressInput from "@/app/components/AddressInput";
 
 type Result = {
   lengthFt: number;
@@ -18,6 +14,13 @@ type Result = {
 };
 
 export default function FenceEstimatePage() {
+  const { t } = useLanguage();
+  const MATERIALS = [
+    { value: "chain_link", label: t("materialChainLink") },
+    { value: "wood", label: t("materialWood") },
+    { value: "vinyl", label: t("materialVinyl") },
+  ];
+
   const [address, setAddress] = useState("");
   const [lengthFt, setLengthFt] = useState("");
   const [material, setMaterial] = useState("chain_link");
@@ -35,7 +38,7 @@ export default function FenceEstimatePage() {
 
   async function measureViaMap() {
     if (!address) {
-      setMapError("Enter your address first.");
+      setMapError(t("selectAddressFirstSimple"));
       return;
     }
     setMapError(null);
@@ -49,19 +52,19 @@ export default function FenceEstimatePage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMapError(data.error ?? "Could not locate that address.");
+        setMapError(data.error ?? t("couldNotLocate"));
         return;
       }
       setShowMap(true);
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        setMapError("Google Maps isn't configured yet.");
+        setMapError(t("mapsNotConfigured"));
         return;
       }
       await loadGoogleMaps(apiKey);
       initMap(data.location);
     } catch {
-      setMapError("Something went wrong loading the map.");
+      setMapError(t("somethingWentWrong"));
     } finally {
       setMapLoading(false);
     }
@@ -96,7 +99,7 @@ export default function FenceEstimatePage() {
     const google = window.google;
     const polyline = polylineRef.current;
     if (!polyline || polyline.getPath().getLength() < 2) {
-      setMapError("Click at least 2 points to trace the fence line.");
+      setMapError(t("clickAtLeast2Fence"));
       return;
     }
     const lengthM = google.maps.geometry.spherical.computeLength(polyline.getPath());
@@ -124,7 +127,7 @@ export default function FenceEstimatePage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong.");
+        setError(data.error ?? t("somethingWentWrong"));
       } else {
         setResult(data);
       }
@@ -136,23 +139,22 @@ export default function FenceEstimatePage() {
   return (
     <main>
       <div className="card">
-        <h1>Fence building estimate</h1>
+        <h1>{t("fenceEstimateTitle")}</h1>
         <form onSubmit={getEstimate}>
-          <label>Address (optional — lets you measure the fence line on a map)</label>
-          <input value={address} onChange={(e) => setAddress(e.target.value)} />
+          <label>{t("addressOptionalFence")}</label>
+          <AddressInput value={address} onChange={setAddress} />
 
           <div style={{ marginBottom: 16 }}>
             {!measuredFt && (
               <button type="button" onClick={measureViaMap} disabled={mapLoading}>
-                {mapLoading ? "Loading map..." : "Measure fence line via map"}
+                {mapLoading ? t("loadingMap") : t("measureFenceBtn")}
               </button>
             )}
             {mapError && <p style={{ color: "var(--gold)" }}>{mapError}</p>}
             {showMap && !measuredFt && (
               <div style={{ marginTop: 12 }}>
                 <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                  Click points along where the fence will go ({pointCount} point
-                  {pointCount === 1 ? "" : "s"} placed).
+                  {t("clickPointsFence")} {t("pointsPlaced", { count: pointCount, s: pointCount === 1 ? "" : "s" })}
                 </p>
                 <div
                   ref={mapRef}
@@ -160,22 +162,22 @@ export default function FenceEstimatePage() {
                 />
                 <div style={{ display: "flex", gap: 10 }}>
                   <button type="button" onClick={finishMeasuring} disabled={pointCount < 2}>
-                    Finish measuring
+                    {t("finishMeasuring")}
                   </button>
                   <button type="button" onClick={clearLine} disabled={pointCount === 0}>
-                    Clear
+                    {t("clear")}
                   </button>
                 </div>
               </div>
             )}
             {measuredFt && (
               <p className="accent">
-                Measured length: {measuredFt} ft
+                {t("measuredLengthPrefix")}: {measuredFt} ft
               </p>
             )}
           </div>
 
-          <label>Fence length (feet)</label>
+          <label>{t("fenceLengthFeetLabel")}</label>
           <input
             type="number"
             min={1}
@@ -184,7 +186,7 @@ export default function FenceEstimatePage() {
             required
           />
 
-          <label>Material</label>
+          <label>{t("materialLabel")}</label>
           <select value={material} onChange={(e) => setMaterial(e.target.value)}>
             {MATERIALS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -194,22 +196,34 @@ export default function FenceEstimatePage() {
           </select>
 
           <button type="submit" disabled={loading}>
-            {loading ? "Calculating..." : "Get estimate"}
+            {loading ? t("calculatingBtn") : t("getEstimateBtn")}
           </button>
         </form>
 
-        {error && <p>Error: {error}</p>}
+        {error && (
+          <p>
+            {t("errorPrefix")}: {error}
+          </p>
+        )}
 
         {result && (
           <div style={{ marginTop: 16 }}>
-            <h3>Estimate</h3>
+            <h3>{t("estimateHeading")}</h3>
             <p>
-              {result.lengthFt} ft of {MATERIALS.find((m) => m.value === result.material)?.label} @ $
-              {result.rate}/ft = ${result.bySize}
+              {t("fenceLineItem", {
+                lengthFt: String(result.lengthFt),
+                material: MATERIALS.find((m) => m.value === result.material)?.label ?? "",
+                rate: String(result.rate),
+                cost: String(result.bySize),
+              })}
             </p>
-            <p>Minimum job price: ${result.minimumPrice}</p>
             <p>
-              <strong>Total: ${result.total}</strong>
+              {t("minimumJobPrice")}: ${result.minimumPrice}
+            </p>
+            <p>
+              <strong>
+                {t("totalLabel")}: ${result.total}
+              </strong>
             </p>
           </div>
         )}

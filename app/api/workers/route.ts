@@ -3,16 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { sendLoginCode } from "@/lib/loginCode";
 import { z } from "zod";
 
-// Admin-only (see middleware.ts): who currently has worker (read-only
-// dashboard) access, and adding someone new by email.
+// Admin-only (see middleware.ts): who currently has staff access, and adding
+// someone new by email (optionally granting them admin too).
 export async function GET() {
-  const workers = await prisma.worker.findMany({ orderBy: { addedAt: "desc" } });
+  const workers = await prisma.worker.findMany({
+    orderBy: { addedAt: "desc" },
+    select: { id: true, email: true, name: true, isAdmin: true, addedAt: true },
+  });
   return NextResponse.json(workers);
 }
 
 const BodySchema = z.object({
   email: z.string().email(),
   name: z.string().optional(),
+  isAdmin: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,8 +28,9 @@ export async function POST(req: NextRequest) {
 
   const worker = await prisma.worker.upsert({
     where: { email },
-    update: { name: parsed.data.name },
-    create: { email, name: parsed.data.name },
+    update: { name: parsed.data.name, isAdmin: parsed.data.isAdmin ?? undefined },
+    create: { email, name: parsed.data.name, isAdmin: parsed.data.isAdmin ?? false },
+    select: { id: true, email: true, name: true, isAdmin: true, addedAt: true },
   });
 
   await sendLoginCode(email);
