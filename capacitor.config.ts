@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
   appName: "Verdant Lawn Care",
   webDir: "public",
   server: {
-    url: "https://verdant-lawn-care.onrender.com",
+    url: "https://verdantlawn.care",
     cleartext: false,
   },
 };
