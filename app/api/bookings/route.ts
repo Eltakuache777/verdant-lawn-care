@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     update: {
       name: data.customerName,
       phone: data.customerPhone,
+      address: data.address,
       ...(data.mowingFrequency ? { mowingFrequency: data.mowingFrequency } : {}),
       ...(data.binCleaningFrequency ? { binCleaningFrequency: data.binCleaningFrequency } : {}),
     },
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
       name: data.customerName,
       email: data.customerEmail,
       phone: data.customerPhone,
+      address: data.address,
       mowingFrequency: data.mowingFrequency,
       binCleaningFrequency: data.binCleaningFrequency,
     },

@@ -107,6 +107,7 @@ export default function BookPage() {
       .then((r) => r.json())
       .then((session) => {
         if (session?.loggedIn && session.role === "customer") {
+          setEmail(session.email);
           fetch("/api/my/recurring-plan")
             .then((r) => r.json())
             .then((data) => {
@@ -117,6 +118,13 @@ export default function BookPage() {
             .then((data) => {
               if (data?.mowingFrequency) setMowingFrequency(data.mowingFrequency);
               if (data?.binCleaningFrequency) setBinFrequency(data.binCleaningFrequency);
+            });
+          fetch("/api/my/profile")
+            .then((r) => r.json())
+            .then((data) => {
+              if (data?.name) setName(data.name);
+              if (data?.phone) setPhone(data.phone);
+              if (data?.address) setAddress(data.address);
             });
         }
       });

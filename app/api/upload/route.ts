@@ -2,36 +2,44 @@ import { NextRequest, NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+import sharp from "sharp";
 
 // Stores customer-attached photos/videos of a project idea locally under public/uploads.
-// Fine for local development; a real deployment (especially serverless hosts like Vercel)
-// needs actual cloud storage (Vercel Blob, S3, Cloudinary, etc.) since local disk isn't
-// persistent there — swap this out before going live.
+// Render's disk isn't guaranteed persistent across deploys — fine for now, but if photos
+// need to survive long-term, swap this for real cloud storage (S3, Cloudinary, etc.)
+// or a Render persistent disk.
 
-const ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-]);
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB
 const MAX_FILES = 5;
 
-function extensionFor(mimeType: string): string {
-  return (
-    {
-      "image/jpeg": ".jpg",
-      "image/png": ".png",
-      "image/gif": ".gif",
-      "image/webp": ".webp",
-      "video/mp4": ".mp4",
-      "video/quicktime": ".mov",
-      "video/webm": ".webm",
-    }[mimeType] ?? ""
-  );
+// Broad, permissive checks instead of an exact mime-type whitelist — phones report a
+// huge variety of image/video mime types (HEIC on iPhone, 3gpp/x-matroska on Android,
+// sometimes an empty string when the browser can't determine one), and rejecting
+// anything not on a short list was silently blocking real photos/videos from uploading.
+function isImage(mimeType: string) {
+  return mimeType.startsWith("image/");
+}
+function isVideo(mimeType: string) {
+  return mimeType.startsWith("video/");
+}
+function isHeic(mimeType: string, filename: string) {
+  return mimeType === "image/heic" || mimeType === "image/heif" || /\.hei[cf]$/i.test(filename);
+}
+
+function extensionFor(mimeType: string, filename: string): string {
+  const fromName = path.extname(filename);
+  if (fromName) return fromName.toLowerCase();
+  const guess: Record<string, string> = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/webm": ".webm",
+    "video/3gpp": ".3gp",
+  };
+  return guess[mimeType] ?? (isVideo(mimeType) ? ".mp4" : ".jpg");
 }
 
 export async function POST(req: NextRequest) {
@@ -50,16 +58,35 @@ export async function POST(req: NextRequest) {
 
   const urls: string[] = [];
   for (const file of files) {
-    if (!ALLOWED_TYPES.has(file.type)) {
-      return NextResponse.json({ error: `Unsupported file type: ${file.type}` }, { status: 400 });
-    }
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json({ error: `${file.name} is too large (max 25MB)` }, { status: 400 });
     }
+    if (!isImage(file.type) && !isVideo(file.type) && !isHeic(file.type, file.name)) {
+      return NextResponse.json({ error: `${file.name} isn't a supported photo or video` }, { status: 400 });
+    }
 
-    const filename = `${crypto.randomUUID()}${extensionFor(file.type)}`;
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadDir, filename), buffer);
+
+    // Most browsers (everything but Safari) can't display HEIC inline, so try
+    // converting to JPEG for wider compatibility — but sharp's bundled libvips
+    // often can't actually decode real HEIC (licensing), so if that fails,
+    // fall back to storing the original file rather than failing the whole
+    // upload. A photo that doesn't preview perfectly beats one that never sent.
+    let filename: string;
+    if (isHeic(file.type, file.name)) {
+      try {
+        const jpeg = await sharp(buffer).rotate().jpeg({ quality: 85 }).toBuffer();
+        filename = `${crypto.randomUUID()}.jpg`;
+        await writeFile(path.join(uploadDir, filename), jpeg);
+      } catch (err) {
+        console.error(`HEIC conversion failed for ${file.name}, storing original:`, err);
+        filename = `${crypto.randomUUID()}.heic`;
+        await writeFile(path.join(uploadDir, filename), buffer);
+      }
+    } else {
+      filename = `${crypto.randomUUID()}${extensionFor(file.type, file.name)}`;
+      await writeFile(path.join(uploadDir, filename), buffer);
+    }
     urls.push(`/uploads/${filename}`);
   }
 
