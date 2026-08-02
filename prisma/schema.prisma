@@ -177,3 +177,17 @@ model StaffMessage {
   attachmentUrls String[]    @default([])
   createdAt      DateTime    @default(now())
 }
+
+// A browser's push subscription for a given person (customer, worker, or
+// admin), keyed by email. One person can have several — one per device/
+// browser they enabled notifications on.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  email     String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}

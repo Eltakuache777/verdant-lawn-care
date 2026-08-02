@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { staffSessionFrom } from "@/lib/auth";
+import { sendPushToEmails } from "@/lib/push";
 import { z } from "zod";
 
 async function assertMember(threadId: string, email: string) {
@@ -49,5 +50,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       attachmentUrls: parsed.data.attachmentUrls,
     },
   });
+
+  const members = await prisma.staffThreadMember.findMany({ where: { threadId: params.id } });
+  const others = members.map((m) => m.workerEmail).filter((email) => email !== session.email);
+  await sendPushToEmails(others, {
+    title: `${session.name || session.email}`,
+    body: parsed.data.body,
+    url: "/admin",
+  });
+
   return NextResponse.json(message, { status: 201 });
 }

@@ -2,6 +2,7 @@ import "./globals.css";
 import ChatWidget from "./components/ChatWidget";
 import AssistantWidget from "./components/AssistantWidget";
 import NavBar from "./components/NavBar";
+import NotificationPrompt from "./components/NotificationPrompt";
 import { LanguageProvider } from "./components/LanguageProvider";
 import { ChatProvider } from "./components/ChatContext";
 import { AssistantProvider } from "./components/AssistantContext";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
               <ChatWidget />
               <AssistantWidget />
+              <NotificationPrompt />
             </AssistantProvider>
           </ChatProvider>
         </LanguageProvider>

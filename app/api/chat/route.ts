@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendPushToEmails } from "@/lib/push";
 import { z } from "zod";
 
 // Public: a customer's own conversation, looked up by the email they provide.
@@ -38,5 +39,13 @@ export async function POST(req: NextRequest) {
       attachmentUrls: parsed.data.attachmentUrls ?? [],
     },
   });
+
+  const staff = await prisma.worker.findMany({ select: { email: true } });
+  await sendPushToEmails(staff.map((w) => w.email), {
+    title: `New message from ${parsed.data.customerName}`,
+    body: parsed.data.body,
+    url: "/admin",
+  });
+
   return NextResponse.json(message, { status: 201 });
 }

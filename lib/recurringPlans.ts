@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { sendRecurringBookingNotification } from "./email";
+import { sendPushToEmail } from "./push";
 import { daysForFrequency } from "./recurringFrequency";
 
 // Creates the next Booking for every active recurring plan whose nextDate has
@@ -44,6 +45,10 @@ export async function runDueRecurringPlans(): Promise<{ created: number }> {
     } catch (err) {
       console.error("Failed to send recurring booking notification:", err);
     }
+    await sendPushToEmail(plan.customer.email, {
+      title: "Your next lawn service is scheduled",
+      body: `${booking.services.join(", ")} — $${plan.pricePerVisit}`,
+    });
     created++;
   }
   return { created };
