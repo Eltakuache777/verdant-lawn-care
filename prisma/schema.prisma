@@ -29,14 +29,34 @@ model Material {
 }
 
 model Customer {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  phone        String?
-  passwordHash String? // optional — set after signup so they don't need a new email code every time
-  createdAt    DateTime  @default(now())
-  bookings     Booking[]
-  quotes       QuoteRequest[]
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?
+  passwordHash  String? // optional — set after signup so they don't need a new email code every time
+  createdAt     DateTime  @default(now())
+  bookings      Booking[]
+  quotes        QuoteRequest[]
+  recurringPlan RecurringPlan?
+}
+
+// An ongoing lawn-care arrangement the owner sets up for a specific customer —
+// a custom per-visit price (their lawn's actual size/condition, not a generic
+// rate) plus how often they're serviced. The recurring-booking engine
+// (lib/recurringPlans.ts) automatically creates the next Booking when one
+// comes due and emails the customer, so nobody has to manually re-book.
+model RecurringPlan {
+  id            String   @id @default(cuid())
+  customer      Customer @relation(fields: [customerId], references: [id])
+  customerId    String   @unique
+  services      String[] @default([])
+  address       String
+  frequency     String // weekly | biweekly | every_3_weeks | monthly
+  pricePerVisit Float
+  active        Boolean  @default(true)
+  nextDate      DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Booking {

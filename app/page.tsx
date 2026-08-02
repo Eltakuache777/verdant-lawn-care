@@ -4,6 +4,16 @@ import { loadGoogleMaps } from "@/lib/googleMaps";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import { useLanguage } from "./components/LanguageProvider";
 import AddressInput from "./components/AddressInput";
+import type { DictKey } from "@/lib/i18n";
+
+type MyRecurringPlan = { services: string[]; frequency: string; pricePerVisit: number; nextDate: string; active: boolean };
+
+const FREQUENCY_KEYS: Record<string, DictKey> = {
+  weekly: "freqWeekly",
+  biweekly: "freqBiweekly",
+  every_3_weeks: "freqEvery3Weeks",
+  monthly: "freqMonthly",
+};
 
 type ServiceRow = { name: string; basePrice: number };
 type PlanKey = "weekly" | "biweekly" | "monthly" | "one_time";
@@ -66,6 +76,7 @@ export default function BookPage() {
 
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [myPlan, setMyPlan] = useState<MyRecurringPlan | null>(null);
 
   // Fence Building measuring
   const [fenceMapLoading, setFenceMapLoading] = useState(false);
@@ -97,6 +108,18 @@ export default function BookPage() {
     fetch("/api/bookings/availability")
       .then((r) => r.json())
       .then((data) => setAvailability(data.days ?? []));
+
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((session) => {
+        if (session?.loggedIn && session.role === "customer") {
+          fetch("/api/my/recurring-plan")
+            .then((r) => r.json())
+            .then((data) => {
+              if (data?.recurringPlan?.active) setMyPlan(data.recurringPlan);
+            });
+        }
+      });
   }, []);
 
   function toggleService(name: string) {
@@ -468,6 +491,32 @@ export default function BookPage() {
         </h1>
         <p style={{ color: "var(--text-muted)", marginTop: -4 }}>{t("tagline")}</p>
         <h2 style={{ marginTop: 24, fontSize: 18 }}>{t("bookHeading")}</h2>
+
+        {myPlan && (
+          <div
+            style={{
+              border: "1px solid var(--accent)",
+              background: "rgba(52,214,127,0.08)",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ margin: 0 }} className="accent">
+              {t("myPlanBanner", {
+                price: String(myPlan.pricePerVisit),
+                frequency: t(FREQUENCY_KEYS[myPlan.frequency] ?? "freqBiweekly"),
+              })}
+            </p>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+              {t("myPlanNextDate", {
+                date: new Date(myPlan.nextDate).toLocaleDateString(lang === "es" ? "es-ES" : "en-US", { timeZone: "UTC" }),
+              })}{" "}
+              <a href="/account">{t("myPlanManageLink")}</a>
+            </p>
+          </div>
+        )}
+
         <form onSubmit={submitBooking}>
           <label>{t("servicesLabel")}</label>
           {services.map((s) => (

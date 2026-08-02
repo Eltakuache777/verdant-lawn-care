@@ -176,7 +176,7 @@ export default function NavBar() {
       {showCustomerWidgets && session?.loggedIn ? (
         <>
           <a
-            href={session.role === "admin" || session.role === "worker" ? "/admin" : "/"}
+            href={session.role === "admin" || session.role === "worker" ? "/admin" : "/account"}
             style={{ marginLeft: "auto", color: "var(--text-muted)", textDecoration: "none", fontSize: 14 }}
           >
             {session.name || session.email}

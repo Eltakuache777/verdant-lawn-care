@@ -17,7 +17,13 @@ const STAFF_PATHS = new Set([
   "/api/reports/worker-payments",
   "/api/design/admin-generate",
   "/api/workers",
+  "/api/customers",
+  "/api/recurring/run-due",
 ]);
+
+// Just needs to be logged in as someone — used for the customer self-service
+// account page, not gated to a specific role.
+const LOGGED_IN_PATHS = new Set(["/account"]);
 
 async function roleOf(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
@@ -27,11 +33,12 @@ async function roleOf(req: NextRequest) {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const m = req.method;
-  const isPage = path === "/admin" || path === "/worker";
+  const isPage = path === "/admin" || path === "/worker" || path === "/account";
 
   const isStaffOnly =
     STAFF_PATHS.has(path) ||
     path.startsWith("/api/workers/") ||
+    path.startsWith("/api/customers/") ||
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT") ||
     (path.startsWith("/api/bookings/") && m === "PATCH");
@@ -43,6 +50,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (LOGGED_IN_PATHS.has(path)) {
+    const role = await roleOf(req);
+    if (!role) return NextResponse.redirect(new URL("/login", req.url));
+  }
+
   return NextResponse.next();
 }
 
@@ -50,6 +62,7 @@ export const config = {
   matcher: [
     "/admin",
     "/worker",
+    "/account",
     "/api/services",
     "/api/materials",
     "/api/bookings",
@@ -61,5 +74,8 @@ export const config = {
     "/api/design/admin-generate",
     "/api/workers",
     "/api/workers/:id",
+    "/api/customers",
+    "/api/customers/:id",
+    "/api/recurring/run-due",
   ],
 };

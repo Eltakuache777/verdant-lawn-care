@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import { DESIGN_TIERS } from "@/lib/designTiers";
+import { RECURRING_FREQUENCIES, frequencyLabel } from "@/lib/recurringFrequency";
 import PasswordInput from "./PasswordInput";
 
 type ServiceRow = { name: string; basePrice: number };
@@ -43,7 +44,37 @@ type Thread = {
 };
 type ChatMsg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
 type WorkerRow = { id: string; email: string; name: string | null; isAdmin: boolean; addedAt: string };
-type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers";
+type RecurringPlan = {
+  id: string;
+  services: string[];
+  address: string;
+  frequency: string;
+  pricePerVisit: number;
+  active: boolean;
+  nextDate: string;
+};
+type CustomerRow = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+  bookingCount: number;
+  totalPaid: number;
+  recurringPlan: RecurringPlan | null;
+};
+type CustomerDetail = CustomerRow & {
+  bookings: {
+    id: string;
+    services: string[];
+    address: string;
+    scheduledFor: string;
+    status: string;
+    totalPrice: number;
+    amountPaid: number | null;
+  }[];
+};
+type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers";
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
@@ -52,6 +83,7 @@ function isVideoUrl(url: string) {
 const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "schedule", icon: "📅", label: "Schedule" },
   { key: "messages", icon: "💬", label: "Messages" },
+  { key: "customers", icon: "👤", label: "Customers" },
   { key: "prices", icon: "💲", label: "Prices" },
   { key: "reports", icon: "📊", label: "Reports" },
   { key: "design", icon: "🎨", label: "Design" },
@@ -88,6 +120,19 @@ export default function AdminShell({
   const [wpAmount, setWpAmount] = useState("");
   const [wpNote, setWpNote] = useState("");
   const [wpSubmitting, setWpSubmitting] = useState(false);
+
+  // Customers list + per-customer recurring lawn-care plan / custom pricing.
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [customersError, setCustomersError] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
+  const [planServices, setPlanServices] = useState("Mowing");
+  const [planAddress, setPlanAddress] = useState("");
+  const [planFrequency, setPlanFrequency] = useState("biweekly");
+  const [planPrice, setPlanPrice] = useState("");
+  const [planNextDate, setPlanNextDate] = useState("");
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
 
   // Worker (employee) accounts management — add/remove by email.
   const [workers, setWorkers] = useState<WorkerRow[]>([]);
@@ -194,11 +239,96 @@ export default function AdminShell({
     loadThreads();
     loadReport();
     loadWorkers();
+    loadCustomers();
+    // Catches up any recurring plans that came due since the app was last opened.
+    fetch("/api/recurring/run-due", { method: "POST" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.created > 0) {
+          loadBookings(false);
+          loadCustomers();
+        }
+      })
+      .catch(() => {});
 
     const interval = setInterval(() => loadBookings(true), 25000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function loadCustomers() {
+    fetch("/api/customers")
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load customers");
+        return r.json();
+      })
+      .then(setCustomers)
+      .catch(() => setCustomersError("Could not load customers."));
+  }
+
+  function openCustomer(id: string) {
+    setSelectedCustomerId(id);
+    setPlanStatus(null);
+    fetch(`/api/customers/${id}`)
+      .then((r) => r.json())
+      .then((data: CustomerDetail) => {
+        setCustomerDetail(data);
+        const plan = data.recurringPlan;
+        setPlanServices(plan?.services.join(", ") ?? "Mowing");
+        setPlanAddress(plan?.address ?? "");
+        setPlanFrequency(plan?.frequency ?? "biweekly");
+        setPlanPrice(plan ? String(plan.pricePerVisit) : "");
+        setPlanNextDate(plan ? plan.nextDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+      });
+  }
+
+  async function saveRecurringPlan(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedCustomerId) return;
+    setPlanStatus(null);
+    const price = parseFloat(planPrice);
+    if (isNaN(price) || price < 0) {
+      setPlanStatus("Enter a valid price.");
+      return;
+    }
+    if (!planAddress.trim()) {
+      setPlanStatus("Enter an address.");
+      return;
+    }
+    setPlanSaving(true);
+    try {
+      const res = await fetch(`/api/customers/${selectedCustomerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          services: planServices.split(",").map((s) => s.trim()).filter(Boolean),
+          address: planAddress.trim(),
+          frequency: planFrequency,
+          pricePerVisit: price,
+          nextDate: new Date(planNextDate).toISOString(),
+        }),
+      });
+      if (res.ok) {
+        setPlanStatus("✓ Recurring plan saved.");
+        openCustomer(selectedCustomerId);
+        loadCustomers();
+      } else {
+        const err = await res.json();
+        setPlanStatus(err.error ? JSON.stringify(err.error) : "Could not save plan.");
+      }
+    } finally {
+      setPlanSaving(false);
+    }
+  }
+
+  async function cancelRecurringPlan() {
+    if (!selectedCustomerId) return;
+    const res = await fetch(`/api/customers/${selectedCustomerId}`, { method: "DELETE" });
+    if (res.ok) {
+      openCustomer(selectedCustomerId);
+      loadCustomers();
+    }
+  }
 
   function loadReport() {
     fetch("/api/reports")
@@ -1094,6 +1224,126 @@ export default function AdminShell({
                   <strong>Total paid to workers</strong>
                   <strong>${report.totalPaidToWorkers.toLocaleString()}</strong>
                 </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {view === "customers" && (
+          <div className="admin-split">
+            <div className="admin-split-pane admin-split-pane-bordered" style={{ padding: 20, overflowY: "auto" }}>
+              <h3 style={{ marginTop: 0 }}>Customers</h3>
+              {customersError && <p>{customersError}</p>}
+              {!customersError && customers.length === 0 && (
+                <p style={{ color: "var(--text-muted)" }}>No customers yet.</p>
+              )}
+              {customers.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => openCustomer(c.id)}
+                  style={{
+                    border: selectedCustomerId === c.id ? "2px solid var(--accent)" : "1px solid var(--border)",
+                    background: selectedCustomerId === c.id ? "rgba(52,214,127,0.08)" : "transparent",
+                    borderRadius: 8,
+                    padding: 10,
+                    marginBottom: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  <p style={{ margin: 0, fontWeight: 700 }}>{c.name}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                    {c.email}
+                    {c.phone ? ` — ${c.phone}` : ""}
+                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                    {c.bookingCount} booking{c.bookingCount === 1 ? "" : "s"} — ${c.totalPaid.toLocaleString()} paid
+                    {c.recurringPlan?.active && (
+                      <span className="accent"> — recurring {frequencyLabel(c.recurringPlan.frequency)}</span>
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="admin-split-pane" style={{ padding: 20, overflowY: "auto" }}>
+              {!customerDetail ? (
+                <p style={{ color: "var(--text-muted)" }}>Select a customer to view details.</p>
+              ) : (
+                <>
+                  <h3 style={{ marginTop: 0 }}>{customerDetail.name}</h3>
+                  <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: -8 }}>
+                    {customerDetail.email}
+                    {customerDetail.phone ? ` — ${customerDetail.phone}` : ""}
+                  </p>
+
+                  <h4 style={{ marginBottom: 8 }}>Recurring lawn plan</h4>
+                  <form onSubmit={saveRecurringPlan}>
+                    <label style={{ fontSize: 12 }}>Services (comma-separated)</label>
+                    <input value={planServices} onChange={(e) => setPlanServices(e.target.value)} />
+
+                    <label style={{ fontSize: 12 }}>Address</label>
+                    <input value={planAddress} onChange={(e) => setPlanAddress(e.target.value)} />
+
+                    <label style={{ fontSize: 12 }}>How often</label>
+                    <select value={planFrequency} onChange={(e) => setPlanFrequency(e.target.value)}>
+                      {RECURRING_FREQUENCIES.map((f) => (
+                        <option key={f.value} value={f.value}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 12 }}>Price per visit ($)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={planPrice}
+                          onChange={(e) => setPlanPrice(e.target.value)}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 12 }}>Next visit date</label>
+                        <input type="date" value={planNextDate} onChange={(e) => setPlanNextDate(e.target.value)} />
+                      </div>
+                    </div>
+
+                    {planStatus && <p style={{ fontSize: 13 }}>{planStatus}</p>}
+
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button type="submit" disabled={planSaving}>
+                        {planSaving ? "Saving..." : customerDetail.recurringPlan ? "Update plan" : "Set up plan"}
+                      </button>
+                      {customerDetail.recurringPlan?.active && (
+                        <button
+                          type="button"
+                          onClick={cancelRecurringPlan}
+                          style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                        >
+                          Cancel plan
+                        </button>
+                      )}
+                    </div>
+                  </form>
+
+                  <h4 style={{ marginTop: 24, marginBottom: 8 }}>Booking history</h4>
+                  {customerDetail.bookings.length === 0 && (
+                    <p style={{ color: "var(--text-muted)" }}>No bookings yet.</p>
+                  )}
+                  {customerDetail.bookings.map((b) => (
+                    <div key={b.id} style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", fontSize: 13 }}>
+                      <p style={{ margin: 0 }}>
+                        {new Date(b.scheduledFor).toLocaleDateString("en-US", { timeZone: "UTC" })} — {b.services.join(", ")}
+                      </p>
+                      <p style={{ margin: "2px 0 0", color: "var(--text-muted)" }}>
+                        {b.address} — ${b.totalPrice}
+                        {b.amountPaid != null ? ` (paid $${b.amountPaid})` : ` (${b.status})`}
+                      </p>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>
