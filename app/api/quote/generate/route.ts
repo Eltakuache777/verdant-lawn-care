@@ -36,11 +36,14 @@ export async function POST(req: NextRequest) {
   await prisma.quoteRequest.update({ where: { id: quoteRequestId }, data: { status: "generating" } });
 
   try {
-    const inputImagePath = path.join(process.cwd(), "public", quote.photoUrls[0]);
-    const inputImage = await readFile(inputImagePath);
-
     const uploadDir = path.join(process.cwd(), "public", "uploads");
     await mkdir(uploadDir, { recursive: true });
+
+    // photoUrls store whatever /api/upload returned, which is a /api/files/<name>
+    // link (see that route for why) — the actual file always lives in
+    // public/uploads regardless of URL prefix, so read it by filename.
+    const inputImagePath = path.join(uploadDir, path.basename(quote.photoUrls[0]));
+    const inputImage = await readFile(inputImagePath);
 
     const conceptUrls: string[] = [];
     for (let i = 0; i < quote.conceptCount; i++) {
@@ -50,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
       const filename = `${crypto.randomUUID()}.png`;
       await writeFile(path.join(uploadDir, filename), resultBuffer);
-      conceptUrls.push(`/uploads/${filename}`);
+      conceptUrls.push(`/api/files/${filename}`);
     }
 
     const updated = await prisma.quoteRequest.update({
