@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, readdir } from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
@@ -90,5 +91,13 @@ export async function POST(req: NextRequest) {
     urls.push(`/uploads/${filename}`);
   }
 
-  return NextResponse.json({ urls });
+  // TEMP DIAGNOSTIC — remove once the 404-after-upload issue is root-caused.
+  const debug = {
+    cwd: process.cwd(),
+    uploadDir,
+    justWrittenExists: existsSync(path.join(uploadDir, path.basename(urls[0]))),
+    dirListing: await readdir(uploadDir).catch((e) => `readdir failed: ${e.message}`),
+  };
+
+  return NextResponse.json({ urls, debug });
 }
