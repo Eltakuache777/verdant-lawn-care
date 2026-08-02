@@ -110,28 +110,24 @@ export default function ChatWidget() {
         <div
           style={{
             position: "fixed",
-            top: 76,
-            right: 20,
-            width: 320,
-            maxHeight: 440,
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
+            inset: 0,
+            background: "var(--bg)",
             display: "flex",
             flexDirection: "column",
             zIndex: 1000,
-            overflow: "hidden",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
           }}
         >
           <div
             style={{
-              padding: 12,
+              padding: "16px 20px",
               borderBottom: "1px solid var(--border)",
               fontWeight: 700,
+              fontSize: 18,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              flexShrink: 0,
+              background: "var(--bg-elevated)",
             }}
           >
             {t("chatTitle")}
@@ -139,23 +135,23 @@ export default function ChatWidget() {
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close"
-              style={{ background: "transparent", color: "var(--text-muted)", padding: "2px 6px", fontWeight: 700 }}
+              style={{ background: "transparent", color: "var(--text-muted)", padding: "4px 10px", fontWeight: 700, fontSize: 20 }}
             >
               ✕
             </button>
           </div>
 
           {!identified ? (
-            <form onSubmit={startChat} style={{ padding: 12 }}>
-              <label style={{ fontSize: 12 }}>{t("nameLabel")}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required style={{ marginBottom: 8 }} />
-              <label style={{ fontSize: 12 }}>{t("emailLabel")}</label>
+            <form onSubmit={startChat} style={{ padding: 20, maxWidth: 420, width: "100%", margin: "0 auto" }}>
+              <label style={{ fontSize: 13 }}>{t("nameLabel")}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} required style={{ marginBottom: 10 }} />
+              <label style={{ fontSize: 13 }}>{t("emailLabel")}</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                style={{ marginBottom: 8 }}
+                style={{ marginBottom: 10 }}
               />
               <button type="submit" style={{ width: "100%" }}>
                 {t("chatStartBtn")}
@@ -168,15 +164,14 @@ export default function ChatWidget() {
                 style={{
                   flex: 1,
                   overflowY: "auto",
-                  padding: 12,
+                  padding: "20px max(20px, calc(50% - 340px))",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 8,
-                  minHeight: 200,
+                  gap: 12,
                 }}
               >
                 {messages.length === 0 && (
-                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("chatEmptyState")}</p>
+                  <p style={{ color: "var(--text-muted)", fontSize: 15 }}>{t("chatEmptyState")}</p>
                 )}
                 {messages.map((m) => (
                   <div
@@ -185,24 +180,24 @@ export default function ChatWidget() {
                       alignSelf: m.sender === "customer" ? "flex-end" : "flex-start",
                       background: m.sender === "customer" ? "var(--accent)" : "var(--bg-input)",
                       color: m.sender === "customer" ? "#06130c" : "var(--text)",
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      maxWidth: "80%",
+                      padding: "12px 14px",
+                      borderRadius: 10,
+                      maxWidth: "min(80%, 520px)",
                       minWidth: 0,
-                      fontSize: 13,
+                      fontSize: 15,
                       overflowWrap: "break-word",
                       wordBreak: "break-word",
                     }}
                   >
                     <div>{m.body}</div>
                     {m.attachmentUrls && m.attachmentUrls.length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                         {m.attachmentUrls.map((url) =>
                           isVideoUrl(url) ? (
-                            <video key={url} src={url} controls style={{ width: 100, borderRadius: 4 }} />
+                            <video key={url} src={url} controls style={{ width: 160, borderRadius: 6 }} />
                           ) : (
                             <a key={url} href={url} target="_blank" rel="noopener noreferrer">
-                              <img src={url} alt="attachment" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 4 }} />
+                              <img src={url} alt="attachment" style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 6 }} />
                             </a>
                           )
                         )}
@@ -211,13 +206,21 @@ export default function ChatWidget() {
                   </div>
                 ))}
               </div>
-              <form onSubmit={sendMessage} style={{ padding: 8, borderTop: "1px solid var(--border)" }}>
+              <form
+                onSubmit={sendMessage}
+                style={{
+                  padding: "12px max(20px, calc(50% - 340px))",
+                  borderTop: "1px solid var(--border)",
+                  flexShrink: 0,
+                  background: "var(--bg-elevated)",
+                }}
+              >
                 {files.length > 0 && (
-                  <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 6px" }}>
                     {t("chatFilesAttached", { count: files.length, s: files.length === 1 ? "" : "s" })}
                   </p>
                 )}
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 8 }}>
                   <input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -249,7 +252,7 @@ export default function ChatWidget() {
                   <button
                     type="button"
                     onClick={() => cameraInputRef.current?.click()}
-                    style={{ padding: "8px 10px" }}
+                    style={{ padding: "10px 14px" }}
                     aria-label={t("chatCameraAria")}
                   >
                     📷
@@ -257,12 +260,12 @@ export default function ChatWidget() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    style={{ padding: "8px 10px" }}
+                    style={{ padding: "10px 14px" }}
                     aria-label={t("chatAttachAria")}
                   >
                     📎
                   </button>
-                  <button type="submit" disabled={sending} style={{ padding: "8px 12px" }}>
+                  <button type="submit" disabled={sending} style={{ padding: "10px 16px" }}>
                     {t("chatSend")}
                   </button>
                 </div>

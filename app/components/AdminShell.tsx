@@ -74,7 +74,17 @@ type CustomerDetail = CustomerRow & {
     amountPaid: number | null;
   }[];
 };
-type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers";
+type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team";
+type TeamThread = {
+  id: string;
+  isGroup: boolean;
+  name: string;
+  memberEmails: string[];
+  lastMessage: string;
+  lastSenderEmail: string;
+  lastAt: string;
+};
+type TeamMsg = { id: string; senderEmail: string; senderName: string | null; body: string; attachmentUrls: string[]; createdAt: string };
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
@@ -83,6 +93,7 @@ function isVideoUrl(url: string) {
 const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "schedule", icon: "📅", label: "Schedule" },
   { key: "messages", icon: "💬", label: "Messages" },
+  { key: "team", icon: "🗨️", label: "Team" },
   { key: "customers", icon: "👤", label: "Customers" },
   { key: "prices", icon: "💲", label: "Prices" },
   { key: "reports", icon: "📊", label: "Reports" },
@@ -133,6 +144,19 @@ export default function AdminShell({
   const [planNextDate, setPlanNextDate] = useState("");
   const [planSaving, setPlanSaving] = useState(false);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
+
+  // Internal staff messaging — 1:1 and group chats among admin/workers.
+  const [teamThreads, setTeamThreads] = useState<TeamThread[]>([]);
+  const [teamThreadsError, setTeamThreadsError] = useState<string | null>(null);
+  const [selectedTeamThreadId, setSelectedTeamThreadId] = useState<string | null>(null);
+  const [selectedTeamThreadName, setSelectedTeamThreadName] = useState("");
+  const [teamMessages, setTeamMessages] = useState<TeamMsg[]>([]);
+  const [teamDraft, setTeamDraft] = useState("");
+  const [teamSending, setTeamSending] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatEmails, setNewChatEmails] = useState<string[]>([]);
+  const [newChatGroupName, setNewChatGroupName] = useState("");
+  const [newChatStatus, setNewChatStatus] = useState<string | null>(null);
 
   // Worker (employee) accounts management — add/remove by email.
   const [workers, setWorkers] = useState<WorkerRow[]>([]);
@@ -240,6 +264,7 @@ export default function AdminShell({
     loadReport();
     loadWorkers();
     loadCustomers();
+    loadTeamThreads();
     // Catches up any recurring plans that came due since the app was last opened.
     fetch("/api/recurring/run-due", { method: "POST" })
       .then((r) => (r.ok ? r.json() : null))
@@ -318,6 +343,77 @@ export default function AdminShell({
       }
     } finally {
       setPlanSaving(false);
+    }
+  }
+
+  function loadTeamThreads() {
+    fetch("/api/staff-chat/threads")
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load team chat");
+        return r.json();
+      })
+      .then(setTeamThreads)
+      .catch(() => setTeamThreadsError("Could not load team chat."));
+  }
+
+  function openTeamThread(thread: TeamThread) {
+    setSelectedTeamThreadId(thread.id);
+    setSelectedTeamThreadName(thread.name);
+    setNewChatOpen(false);
+    fetch(`/api/staff-chat/threads/${thread.id}/messages`)
+      .then((r) => r.json())
+      .then(setTeamMessages);
+  }
+
+  async function sendTeamMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedTeamThreadId || !teamDraft.trim()) return;
+    setTeamSending(true);
+    try {
+      const res = await fetch(`/api/staff-chat/threads/${selectedTeamThreadId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: teamDraft.trim() }),
+      });
+      if (res.ok) {
+        setTeamDraft("");
+        const updated = await fetch(`/api/staff-chat/threads/${selectedTeamThreadId}/messages`).then((r) => r.json());
+        setTeamMessages(updated);
+        loadTeamThreads();
+      }
+    } finally {
+      setTeamSending(false);
+    }
+  }
+
+  function toggleNewChatEmail(email: string) {
+    setNewChatEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
+  }
+
+  async function createTeamThread(e: React.FormEvent) {
+    e.preventDefault();
+    if (newChatEmails.length === 0) {
+      setNewChatStatus("Pick at least one person.");
+      return;
+    }
+    setNewChatStatus(null);
+    const res = await fetch("/api/staff-chat/threads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberEmails: newChatEmails, name: newChatGroupName.trim() || undefined }),
+    });
+    if (res.ok) {
+      const thread = await res.json();
+      setNewChatEmails([]);
+      setNewChatGroupName("");
+      loadTeamThreads();
+      const others = thread.members.filter((m: { workerEmail: string }) => m.workerEmail !== myEmail);
+      const displayName =
+        thread.name || (thread.isGroup ? others.map((o: { workerName: string | null; workerEmail: string }) => o.workerName || o.workerEmail).join(", ") : others[0]?.workerName || others[0]?.workerEmail);
+      openTeamThread({ id: thread.id, isGroup: thread.isGroup, name: displayName, memberEmails: [], lastMessage: "", lastSenderEmail: "", lastAt: "" });
+    } else {
+      const err = await res.json();
+      setNewChatStatus(err.error ? JSON.stringify(err.error) : "Could not start chat.");
     }
   }
 
@@ -1224,6 +1320,131 @@ export default function AdminShell({
                   <strong>Total paid to workers</strong>
                   <strong>${report.totalPaidToWorkers.toLocaleString()}</strong>
                 </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {view === "team" && (
+          <div className="admin-split">
+            <div className="admin-split-pane admin-split-pane-bordered" style={{ padding: 20, overflowY: "auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <h3 style={{ margin: 0 }}>Team chat</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewChatOpen((v) => !v);
+                    setSelectedTeamThreadId(null);
+                  }}
+                  style={{ fontSize: 12, padding: "6px 10px" }}
+                >
+                  + New chat
+                </button>
+              </div>
+
+              {newChatOpen && (
+                <form onSubmit={createTeamThread} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                  <label style={{ fontSize: 12 }}>With</label>
+                  {workers.filter((w) => w.email !== myEmail).map((w) => (
+                    <label key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: "normal", marginBottom: 6 }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto", margin: 0 }}
+                        checked={newChatEmails.includes(w.email)}
+                        onChange={() => toggleNewChatEmail(w.email)}
+                      />
+                      {w.name || w.email}
+                    </label>
+                  ))}
+                  {newChatEmails.length > 1 && (
+                    <>
+                      <label style={{ fontSize: 12 }}>Group name (optional)</label>
+                      <input value={newChatGroupName} onChange={(e) => setNewChatGroupName(e.target.value)} placeholder="e.g. Crew chat" />
+                    </>
+                  )}
+                  {newChatStatus && <p style={{ fontSize: 13 }}>{newChatStatus}</p>}
+                  <button type="submit" style={{ fontSize: 12, padding: "6px 10px" }}>
+                    Start chat
+                  </button>
+                </form>
+              )}
+
+              {teamThreadsError && <p>{teamThreadsError}</p>}
+              {!teamThreadsError && teamThreads.length === 0 && !newChatOpen && (
+                <p style={{ color: "var(--text-muted)" }}>No team chats yet — start one above.</p>
+              )}
+              {teamThreads.map((t) => (
+                <div
+                  key={t.id}
+                  onClick={() => openTeamThread(t)}
+                  style={{
+                    border: selectedTeamThreadId === t.id ? "2px solid var(--accent)" : "1px solid var(--border)",
+                    background: selectedTeamThreadId === t.id ? "rgba(52,214,127,0.08)" : "transparent",
+                    borderRadius: 8,
+                    padding: 10,
+                    marginBottom: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  <p style={{ margin: 0, fontWeight: 700 }}>
+                    {t.isGroup && "👥 "}
+                    {t.name}
+                  </p>
+                  {t.lastMessage && (
+                    <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {t.lastSenderEmail === myEmail ? "You: " : ""}
+                      {t.lastMessage}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="admin-split-pane" style={{ display: "flex", flexDirection: "column", minHeight: 320 }}>
+              {!selectedTeamThreadId ? (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+                  Select a chat
+                </div>
+              ) : (
+                <>
+                  <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", fontWeight: 700 }}>
+                    {selectedTeamThreadName}
+                  </div>
+                  <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+                    {teamMessages.map((m) => (
+                      <div key={m.id} style={{ alignSelf: m.senderEmail === myEmail ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+                        {m.senderEmail !== myEmail && (
+                          <p style={{ margin: "0 0 2px", fontSize: 11, color: "var(--text-muted)" }}>{m.senderName || m.senderEmail}</p>
+                        )}
+                        <div
+                          style={{
+                            background: m.senderEmail === myEmail ? "var(--accent)" : "var(--bg-input)",
+                            color: m.senderEmail === myEmail ? "#06130c" : "var(--text)",
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            minWidth: 0,
+                            fontSize: 13,
+                            overflowWrap: "break-word",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {m.body}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <form onSubmit={sendTeamMessage} style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
+                    <input
+                      value={teamDraft}
+                      onChange={(e) => setTeamDraft(e.target.value)}
+                      placeholder="Type a message..."
+                      style={{ marginBottom: 0, flex: 1 }}
+                    />
+                    <button type="submit" disabled={teamSending}>
+                      Send
+                    </button>
+                  </form>
+                </>
               )}
             </div>
           </div>

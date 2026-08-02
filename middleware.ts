@@ -19,6 +19,7 @@ const STAFF_PATHS = new Set([
   "/api/workers",
   "/api/customers",
   "/api/recurring/run-due",
+  "/api/staff-chat/threads",
 ]);
 
 // Just needs to be logged in as someone — used for the customer self-service
@@ -39,6 +40,7 @@ export async function middleware(req: NextRequest) {
     STAFF_PATHS.has(path) ||
     path.startsWith("/api/workers/") ||
     path.startsWith("/api/customers/") ||
+    path.startsWith("/api/staff-chat/threads/") ||
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT") ||
     (path.startsWith("/api/bookings/") && m === "PATCH");
@@ -77,5 +79,7 @@ export const config = {
     "/api/customers",
     "/api/customers/:id",
     "/api/recurring/run-due",
+    "/api/staff-chat/threads",
+    "/api/staff-chat/threads/:id/messages",
   ],
 };

@@ -143,3 +143,37 @@ model ChatMessage {
   attachmentUrls  String[] @default([]) // photos/videos of a project idea attached to a quote request
   createdAt       DateTime @default(now())
 }
+
+// Internal staff messaging — separate from the customer support chat above.
+// A thread is either a 1:1 (isGroup false, exactly 2 members) or a named
+// group chat among any number of staff.
+model StaffThread {
+  id        String              @id @default(cuid())
+  name      String? // set for group chats; 1:1 threads are labeled by the other member's name in the UI
+  isGroup   Boolean             @default(false)
+  createdAt DateTime            @default(now())
+  members   StaffThreadMember[]
+  messages  StaffMessage[]
+}
+
+model StaffThreadMember {
+  id          String      @id @default(cuid())
+  thread      StaffThread @relation(fields: [threadId], references: [id])
+  threadId    String
+  workerEmail String
+  workerName  String?
+  joinedAt    DateTime    @default(now())
+
+  @@unique([threadId, workerEmail])
+}
+
+model StaffMessage {
+  id             String      @id @default(cuid())
+  thread         StaffThread @relation(fields: [threadId], references: [id])
+  threadId       String
+  senderEmail    String
+  senderName     String?
+  body           String
+  attachmentUrls String[]    @default([])
+  createdAt      DateTime    @default(now())
+}
