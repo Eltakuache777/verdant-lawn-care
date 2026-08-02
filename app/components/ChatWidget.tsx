@@ -23,7 +23,8 @@ export default function ChatWidget() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const storedName = localStorage.getItem("chatName");
@@ -239,9 +240,20 @@ export default function ChatWidget() {
                     style={{ display: "none" }}
                   />
                   <input
-                    ref={cameraInputRef}
+                    ref={photoInputRef}
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
                     capture="environment"
                     onChange={(e) => {
                       setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
@@ -251,11 +263,19 @@ export default function ChatWidget() {
                   />
                   <button
                     type="button"
-                    onClick={() => cameraInputRef.current?.click()}
+                    onClick={() => photoInputRef.current?.click()}
                     style={{ padding: "10px 14px" }}
                     aria-label={t("chatCameraAria")}
                   >
                     📷
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => videoInputRef.current?.click()}
+                    style={{ padding: "10px 14px" }}
+                    aria-label={t("chatVideoAria")}
+                  >
+                    🎥
                   </button>
                   <button
                     type="button"

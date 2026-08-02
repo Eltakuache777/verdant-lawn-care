@@ -155,7 +155,8 @@ export default function AdminShell({
   const [teamSending, setTeamSending] = useState(false);
   const [teamFiles, setTeamFiles] = useState<File[]>([]);
   const teamFileInputRef = useRef<HTMLInputElement>(null);
-  const teamCameraInputRef = useRef<HTMLInputElement>(null);
+  const teamPhotoInputRef = useRef<HTMLInputElement>(null);
+  const teamVideoInputRef = useRef<HTMLInputElement>(null);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatEmails, setNewChatEmails] = useState<string[]>([]);
   const [newChatGroupName, setNewChatGroupName] = useState("");
@@ -195,7 +196,8 @@ export default function AdminShell({
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [sendingReply, setSendingReply] = useState(false);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
-  const replyCameraInputRef = useRef<HTMLInputElement>(null);
+  const replyPhotoInputRef = useRef<HTMLInputElement>(null);
+  const replyVideoInputRef = useRef<HTMLInputElement>(null);
 
   const lastSeenBookingRef = useRef<string | null>(null);
   const seenAnyBookingsRef = useRef(false);
@@ -1146,9 +1148,20 @@ export default function AdminShell({
                         style={{ display: "none" }}
                       />
                       <input
-                        ref={replyCameraInputRef}
+                        ref={replyPhotoInputRef}
                         type="file"
-                        accept="image/*,video/*"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                      <input
+                        ref={replyVideoInputRef}
+                        type="file"
+                        accept="video/*"
                         capture="environment"
                         onChange={(e) => {
                           setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
@@ -1158,11 +1171,19 @@ export default function AdminShell({
                       />
                       <button
                         type="button"
-                        onClick={() => replyCameraInputRef.current?.click()}
+                        onClick={() => replyPhotoInputRef.current?.click()}
                         style={{ padding: "8px 10px" }}
-                        aria-label="Take a photo or video"
+                        aria-label="Take a photo"
                       >
                         📷
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => replyVideoInputRef.current?.click()}
+                        style={{ padding: "8px 10px" }}
+                        aria-label="Record a video"
+                      >
+                        🎥
                       </button>
                       <button
                         type="button"
@@ -1514,9 +1535,20 @@ export default function AdminShell({
                         style={{ display: "none" }}
                       />
                       <input
-                        ref={teamCameraInputRef}
+                        ref={teamPhotoInputRef}
                         type="file"
-                        accept="image/*,video/*"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                      <input
+                        ref={teamVideoInputRef}
+                        type="file"
+                        accept="video/*"
                         capture="environment"
                         onChange={(e) => {
                           setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
@@ -1526,11 +1558,19 @@ export default function AdminShell({
                       />
                       <button
                         type="button"
-                        onClick={() => teamCameraInputRef.current?.click()}
+                        onClick={() => teamPhotoInputRef.current?.click()}
                         style={{ padding: "8px 10px" }}
-                        aria-label="Take a photo or video"
+                        aria-label="Take a photo"
                       >
                         📷
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => teamVideoInputRef.current?.click()}
+                        style={{ padding: "8px 10px" }}
+                        aria-label="Record a video"
+                      >
+                        🎥
                       </button>
                       <button
                         type="button"
