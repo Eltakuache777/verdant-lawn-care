@@ -5,6 +5,7 @@ import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import { useLanguage } from "./components/LanguageProvider";
 import AddressInput from "./components/AddressInput";
 import type { DictKey } from "@/lib/i18n";
+import { SERVICE_FREQUENCY_VALUES } from "@/lib/recurringFrequency";
 
 type MyRecurringPlan = { services: string[]; frequency: string; pricePerVisit: number; nextDate: string; active: boolean };
 
@@ -13,10 +14,10 @@ const FREQUENCY_KEYS: Record<string, DictKey> = {
   biweekly: "freqBiweekly",
   every_3_weeks: "freqEvery3Weeks",
   monthly: "freqMonthly",
+  bimonthly: "freqBimonthly",
 };
 
 type ServiceRow = { name: string; basePrice: number };
-type PlanKey = "weekly" | "biweekly" | "monthly" | "one_time";
 type MowingEstimate = { sqft: number; total: number | null; overgrownFee: number; needsManualQuote: boolean };
 type AvailabilityDay = { date: string; count: number; times: string[] };
 type FenceEstimate = { lengthFt: number; material: string; total: number };
@@ -43,14 +44,6 @@ export default function BookPage() {
     { key: "patio", label: t("surfacePatio") },
     { key: "fence_wash", label: t("surfaceFence") },
   ];
-  const RECURRING_PLANS: { key: PlanKey; label: string; note: string; basePrice: number; badge?: string }[] = [
-    { key: "weekly", label: t("planWeeklyLabel"), note: t("planWeeklyNote"), basePrice: 40, badge: t("planWeeklyBadge") },
-    { key: "biweekly", label: t("planBiweeklyLabel"), note: t("planBiweeklyNote"), basePrice: 50 },
-  ];
-  const AS_NEEDED_PLANS: { key: PlanKey; label: string; note: string; basePrice: number }[] = [
-    { key: "monthly", label: t("planMonthlyLabel"), note: t("planMonthlyNote"), basePrice: 85 },
-    { key: "one_time", label: t("planOneTimeLabel"), note: t("planOneTimeNote"), basePrice: 100 },
-  ];
 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -70,13 +63,14 @@ export default function BookPage() {
   const [pointCount, setPointCount] = useState(0);
   const [mowingEstimate, setMowingEstimate] = useState<MowingEstimate | null>(null);
   const [grassHeightIn, setGrassHeightIn] = useState("");
-  const [plan, setPlan] = useState<PlanKey | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const polygonRef = useRef<any>(null);
 
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [myPlan, setMyPlan] = useState<MyRecurringPlan | null>(null);
+  const [mowingFrequency, setMowingFrequency] = useState("");
+  const [binFrequency, setBinFrequency] = useState("");
 
   // Fence Building measuring
   const [fenceMapLoading, setFenceMapLoading] = useState(false);
@@ -118,6 +112,12 @@ export default function BookPage() {
             .then((data) => {
               if (data?.recurringPlan?.active) setMyPlan(data.recurringPlan);
             });
+          fetch("/api/my/service-frequencies")
+            .then((r) => r.json())
+            .then((data) => {
+              if (data?.mowingFrequency) setMowingFrequency(data.mowingFrequency);
+              if (data?.binCleaningFrequency) setBinFrequency(data.binCleaningFrequency);
+            });
         }
       });
   }, []);
@@ -129,7 +129,6 @@ export default function BookPage() {
     if (name === "Mowing") {
       setShowMap(false);
       setMowingEstimate(null);
-      setPlan(null);
     }
     if (name === "Fence Building") {
       setShowFenceMap(false);
@@ -462,7 +461,8 @@ export default function BookPage() {
           customerEmail: email,
           customerPhone: phone,
           services: selectedServices,
-          planFrequency: plan ?? undefined,
+          mowingFrequency: selectedServices.includes("Mowing") ? mowingFrequency || undefined : undefined,
+          binCleaningFrequency: selectedServices.includes("Bin Cleaning") ? binFrequency || undefined : undefined,
           address,
           scheduledFor: new Date(`${date}T${time}`).toISOString(),
           isEmergency,
@@ -479,7 +479,6 @@ export default function BookPage() {
     }
   }
 
-  const sizeMultiplier = mowingEstimate ? mowingEstimate.sqft / 3000 : 1;
   const mowingSelected = selectedServices.includes("Mowing");
 
   return (
@@ -520,15 +519,43 @@ export default function BookPage() {
         <form onSubmit={submitBooking}>
           <label>{t("servicesLabel")}</label>
           {services.map((s) => (
-            <label key={s.name} style={{ display: "block", fontWeight: "normal" }}>
-              <input
-                type="checkbox"
-                style={{ width: "auto", marginRight: 8 }}
-                checked={selectedServices.includes(s.name)}
-                onChange={() => toggleService(s.name)}
-              />
-              {s.name}
-            </label>
+            <div key={s.name}>
+              <label style={{ display: "block", fontWeight: "normal" }}>
+                <input
+                  type="checkbox"
+                  style={{ width: "auto", marginRight: 8 }}
+                  checked={selectedServices.includes(s.name)}
+                  onChange={() => toggleService(s.name)}
+                />
+                {s.name}
+              </label>
+              {s.name === "Mowing" && selectedServices.includes("Mowing") && (
+                <div style={{ margin: "4px 0 10px 24px" }}>
+                  <label style={{ fontWeight: "normal", fontSize: 12 }}>{t("mowingFrequencyLabel")}</label>
+                  <select value={mowingFrequency} onChange={(e) => setMowingFrequency(e.target.value)} style={{ maxWidth: 220 }}>
+                    <option value="">{t("noPreferenceOption")}</option>
+                    {SERVICE_FREQUENCY_VALUES.map((f) => (
+                      <option key={f} value={f}>
+                        {t(FREQUENCY_KEYS[f])}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {s.name === "Bin Cleaning" && selectedServices.includes("Bin Cleaning") && (
+                <div style={{ margin: "4px 0 10px 24px" }}>
+                  <label style={{ fontWeight: "normal", fontSize: 12 }}>{t("binFrequencyLabel")}</label>
+                  <select value={binFrequency} onChange={(e) => setBinFrequency(e.target.value)} style={{ maxWidth: 220 }}>
+                    <option value="">{t("noPreferenceOption")}</option>
+                    {SERVICE_FREQUENCY_VALUES.map((f) => (
+                      <option key={f} value={f}>
+                        {t(FREQUENCY_KEYS[f])}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           ))}
 
           <label>{t("nameLabel")}</label>
@@ -727,95 +754,6 @@ export default function BookPage() {
                 </div>
               )}
             </div>
-          )}
-
-          {mowingEstimate && (
-            <>
-              <p className="brand-label" style={{ textAlign: "center", marginTop: 8 }}>
-                {t("servicePlansHeading")}
-              </p>
-
-              <p className="brand-label" style={{ marginBottom: 8 }}>
-                {t("recurringHeading")}
-              </p>
-              <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                {RECURRING_PLANS.map((p) => (
-                  <label
-                    key={p.key}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontWeight: "normal",
-                      padding: "8px 4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input
-                        type="radio"
-                        name="plan"
-                        style={{ width: "auto", margin: 0 }}
-                        checked={plan === p.key}
-                        onChange={() => setPlan(p.key)}
-                      />
-                      <span>
-                        <strong>{p.label}</strong>
-                        {p.badge && (
-                          <span className="accent" style={{ fontSize: 11, fontWeight: 700, marginLeft: 8 }}>
-                            {p.badge}
-                          </span>
-                        )}
-                        <br />
-                        <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{p.note}</span>
-                      </span>
-                    </span>
-                    <span className="accent" style={{ fontWeight: 700 }}>
-                      ${Math.round(p.basePrice * sizeMultiplier)}
-                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{t("perVisit")}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              <p className="brand-label" style={{ marginBottom: 8 }}>
-                {t("asNeededHeading")}
-              </p>
-              <div style={{ border: "1px dashed var(--border)", borderRadius: 8, padding: 12, marginBottom: 24 }}>
-                {AS_NEEDED_PLANS.map((p) => (
-                  <label
-                    key={p.key}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontWeight: "normal",
-                      padding: "8px 4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input
-                        type="radio"
-                        name="plan"
-                        style={{ width: "auto", margin: 0 }}
-                        checked={plan === p.key}
-                        onChange={() => setPlan(p.key)}
-                      />
-                      <span>
-                        <strong>{p.label}</strong>
-                        <br />
-                        <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{p.note}</span>
-                      </span>
-                    </span>
-                    <span style={{ fontWeight: 700 }}>
-                      ${Math.round(p.basePrice * sizeMultiplier)}
-                      <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{t("perVisit")}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </>
           )}
 
           <label>{t("dateLabel")}</label>

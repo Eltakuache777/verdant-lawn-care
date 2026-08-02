@@ -177,9 +177,25 @@ export default function NavBar() {
         <>
           <a
             href={session.role === "admin" || session.role === "worker" ? "/admin" : "/account"}
-            style={{ marginLeft: "auto", color: "var(--text-muted)", textDecoration: "none", fontSize: 14 }}
+            title={session.name || session.email}
+            aria-label={session.name || session.email}
+            style={{
+              marginLeft: "auto",
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              background: "var(--accent)",
+              color: "#06130c",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              fontSize: 14,
+              textDecoration: "none",
+              flexShrink: 0,
+            }}
           >
-            {session.name || session.email}
+            {(session.name || session.email || "?").charAt(0).toUpperCase()}
           </a>
           <button
             type="button"

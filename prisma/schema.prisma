@@ -38,6 +38,10 @@ model Customer {
   bookings      Booking[]
   quotes        QuoteRequest[]
   recurringPlan RecurringPlan?
+  // Standing cadence preference for these two services — set from the
+  // account page, prefilled into future bookings. weekly | biweekly | monthly | bimonthly
+  mowingFrequency      String?
+  binCleaningFrequency String?
 }
 
 // An ongoing lawn-care arrangement the owner sets up for a specific customer —
@@ -76,6 +80,8 @@ model Booking {
   completedAt   DateTime?
   assignedWorkerEmail String? // which staff member (admin or worker) is attending this job
   assignedWorkerName  String?
+  mowingFrequency      String? // customer's chosen cadence for Mowing on this booking, if selected
+  binCleaningFrequency String? // customer's chosen cadence for Bin Cleaning on this booking, if selected
   createdAt     DateTime @default(now())
 }
 

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendBookingConfirmation, sendNewBookingAlert } from "@/lib/email";
 import { sendPushToEmails } from "@/lib/push";
+import { SERVICE_FREQUENCY_VALUES } from "@/lib/recurringFrequency";
 import { z } from "zod";
 
 const EMERGENCY_FEE = 15; // adjust to $10-$20 as you decide
+const ServiceFreq = z.enum(SERVICE_FREQUENCY_VALUES as [string, ...string[]]).optional();
 
 const BookingSchema = z.object({
   customerName: z.string().min(1),
@@ -12,6 +14,8 @@ const BookingSchema = z.object({
   customerPhone: z.string().min(1),
   services: z.array(z.string().min(1)).min(1),
   planFrequency: z.enum(["weekly", "biweekly", "monthly", "one_time"]).optional(),
+  mowingFrequency: ServiceFreq,
+  binCleaningFrequency: ServiceFreq,
   address: z.string().min(3),
   scheduledFor: z.string(), // ISO datetime from the date+time picker
   isEmergency: z.boolean().default(false),
@@ -33,8 +37,19 @@ export async function POST(req: NextRequest) {
 
   const customer = await prisma.customer.upsert({
     where: { email: data.customerEmail },
-    update: { name: data.customerName, phone: data.customerPhone },
-    create: { name: data.customerName, email: data.customerEmail, phone: data.customerPhone },
+    update: {
+      name: data.customerName,
+      phone: data.customerPhone,
+      ...(data.mowingFrequency ? { mowingFrequency: data.mowingFrequency } : {}),
+      ...(data.binCleaningFrequency ? { binCleaningFrequency: data.binCleaningFrequency } : {}),
+    },
+    create: {
+      name: data.customerName,
+      email: data.customerEmail,
+      phone: data.customerPhone,
+      mowingFrequency: data.mowingFrequency,
+      binCleaningFrequency: data.binCleaningFrequency,
+    },
   });
 
   const basePrice = services.reduce((sum, s) => sum + s.basePrice, 0);
@@ -46,6 +61,8 @@ export async function POST(req: NextRequest) {
       customerId: customer.id,
       services: data.services,
       planFrequency: data.planFrequency,
+      mowingFrequency: data.mowingFrequency,
+      binCleaningFrequency: data.binCleaningFrequency,
       address: data.address,
       scheduledFor: new Date(data.scheduledFor),
       isEmergency: data.isEmergency,
