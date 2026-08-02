@@ -153,6 +153,9 @@ export default function AdminShell({
   const [teamMessages, setTeamMessages] = useState<TeamMsg[]>([]);
   const [teamDraft, setTeamDraft] = useState("");
   const [teamSending, setTeamSending] = useState(false);
+  const [teamFiles, setTeamFiles] = useState<File[]>([]);
+  const teamFileInputRef = useRef<HTMLInputElement>(null);
+  const teamCameraInputRef = useRef<HTMLInputElement>(null);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatEmails, setNewChatEmails] = useState<string[]>([]);
   const [newChatGroupName, setNewChatGroupName] = useState("");
@@ -192,6 +195,7 @@ export default function AdminShell({
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [sendingReply, setSendingReply] = useState(false);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
+  const replyCameraInputRef = useRef<HTMLInputElement>(null);
 
   const lastSeenBookingRef = useRef<string | null>(null);
   const seenAnyBookingsRef = useRef(false);
@@ -360,6 +364,8 @@ export default function AdminShell({
     setSelectedTeamThreadId(thread.id);
     setSelectedTeamThreadName(thread.name);
     setNewChatOpen(false);
+    setTeamDraft("");
+    setTeamFiles([]);
     fetch(`/api/staff-chat/threads/${thread.id}/messages`)
       .then((r) => r.json())
       .then(setTeamMessages);
@@ -367,16 +373,31 @@ export default function AdminShell({
 
   async function sendTeamMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedTeamThreadId || !teamDraft.trim()) return;
+    if (!selectedTeamThreadId || (!teamDraft.trim() && teamFiles.length === 0)) return;
     setTeamSending(true);
     try {
+      let attachmentUrls: string[] = [];
+      if (teamFiles.length > 0) {
+        const formData = new FormData();
+        for (const f of teamFiles) formData.append("files", f);
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          alert(err.error ?? "Could not upload attachments.");
+          return;
+        }
+        attachmentUrls = (await uploadRes.json()).urls;
+      }
+
       const res = await fetch(`/api/staff-chat/threads/${selectedTeamThreadId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: teamDraft.trim() }),
+        body: JSON.stringify({ body: teamDraft.trim() || "(attached photos/videos)", attachmentUrls }),
       });
       if (res.ok) {
         setTeamDraft("");
+        setTeamFiles([]);
+        if (teamFileInputRef.current) teamFileInputRef.current.value = "";
         const updated = await fetch(`/api/staff-chat/threads/${selectedTeamThreadId}/messages`).then((r) => r.json());
         setTeamMessages(updated);
         loadTeamThreads();
@@ -1118,9 +1139,31 @@ export default function AdminShell({
                         type="file"
                         accept="image/*,video/*"
                         multiple
-                        onChange={(e) => setReplyFiles(Array.from(e.target.files ?? []))}
+                        onChange={(e) => {
+                          setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
                         style={{ display: "none" }}
                       />
+                      <input
+                        ref={replyCameraInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => replyCameraInputRef.current?.click()}
+                        style={{ padding: "8px 10px" }}
+                        aria-label="Take a photo or video"
+                      >
+                        📷
+                      </button>
                       <button
                         type="button"
                         onClick={() => replyFileInputRef.current?.click()}
@@ -1429,21 +1472,79 @@ export default function AdminShell({
                           }}
                         >
                           {m.body}
+                          {m.attachmentUrls && m.attachmentUrls.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                              {m.attachmentUrls.map((url) =>
+                                isVideoUrl(url) ? (
+                                  <video key={url} src={url} controls style={{ width: 140, borderRadius: 4 }} />
+                                ) : (
+                                  <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                                    <img src={url} alt="attachment" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 4 }} />
+                                  </a>
+                                )
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
-                  <form onSubmit={sendTeamMessage} style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-                    <input
-                      value={teamDraft}
-                      onChange={(e) => setTeamDraft(e.target.value)}
-                      placeholder="Type a message..."
-                      style={{ marginBottom: 0, flex: 1 }}
-                    />
-                    <button type="submit" disabled={teamSending}>
-                      Send
-                    </button>
-                  </form>
+                  <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
+                    {teamFiles.length > 0 && (
+                      <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
+                        {teamFiles.length} file{teamFiles.length === 1 ? "" : "s"} attached
+                      </p>
+                    )}
+                    <form onSubmit={sendTeamMessage} style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={teamDraft}
+                        onChange={(e) => setTeamDraft(e.target.value)}
+                        placeholder="Type a message..."
+                        style={{ marginBottom: 0, flex: 1 }}
+                      />
+                      <input
+                        ref={teamFileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={(e) => {
+                          setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                      <input
+                        ref={teamCameraInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => teamCameraInputRef.current?.click()}
+                        style={{ padding: "8px 10px" }}
+                        aria-label="Take a photo or video"
+                      >
+                        📷
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => teamFileInputRef.current?.click()}
+                        style={{ padding: "8px 10px" }}
+                        aria-label="Attach photos or videos"
+                      >
+                        📎
+                      </button>
+                      <button type="submit" disabled={teamSending}>
+                        Send
+                      </button>
+                    </form>
+                  </div>
                 </>
               )}
             </div>
