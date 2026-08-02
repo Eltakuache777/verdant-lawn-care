@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile, readdir } from "fs/promises";
-import { existsSync } from "fs";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
 
-// Stores customer-attached photos/videos of a project idea locally under public/uploads.
-// Render's disk isn't guaranteed persistent across deploys — fine for now, but if photos
-// need to survive long-term, swap this for real cloud storage (S3, Cloudinary, etc.)
-// or a Render persistent disk.
+// Stores customer-attached photos/videos of a project idea under public/uploads,
+// but they're served back out through /api/files/[filename] (see that route) rather
+// than as a plain /uploads/... static path — Next.js's production static file
+// serving only recognizes files that existed in /public at BUILD time, so anything
+// written here at runtime would otherwise 404 even though it's genuinely on disk.
+// Render's disk also isn't guaranteed persistent across deploys — fine for now, but
+// if photos need to survive long-term, swap this for real cloud storage.
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB
 const MAX_FILES = 5;
@@ -88,16 +90,8 @@ export async function POST(req: NextRequest) {
       filename = `${crypto.randomUUID()}${extensionFor(file.type, file.name)}`;
       await writeFile(path.join(uploadDir, filename), buffer);
     }
-    urls.push(`/uploads/${filename}`);
+    urls.push(`/api/files/${filename}`);
   }
 
-  // TEMP DIAGNOSTIC — remove once the 404-after-upload issue is root-caused.
-  const debug = {
-    cwd: process.cwd(),
-    uploadDir,
-    justWrittenExists: existsSync(path.join(uploadDir, path.basename(urls[0]))),
-    dirListing: await readdir(uploadDir).catch((e) => `readdir failed: ${e.message}`),
-  };
-
-  return NextResponse.json({ urls, debug });
+  return NextResponse.json({ urls });
 }
