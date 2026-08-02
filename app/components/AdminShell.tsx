@@ -4,6 +4,7 @@ import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import { DESIGN_TIERS } from "@/lib/designTiers";
 import { RECURRING_FREQUENCIES, frequencyLabel } from "@/lib/recurringFrequency";
 import PasswordInput from "./PasswordInput";
+import FilePreviewStrip from "./FilePreviewStrip";
 
 type ServiceRow = { name: string; basePrice: number };
 type MaterialRow = { name: string; unit: string; price: number };
@@ -1124,11 +1125,7 @@ export default function AdminShell({
                     ))}
                   </div>
                   <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-                    {replyFiles.length > 0 && (
-                      <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
-                        {replyFiles.length} file{replyFiles.length === 1 ? "" : "s"} attached
-                      </p>
-                    )}
+                    <FilePreviewStrip files={replyFiles} onRemove={(i) => setReplyFiles((prev) => prev.filter((_, idx) => idx !== i))} />
                     <form onSubmit={sendReply} style={{ display: "flex", gap: 8 }}>
                       <input
                         value={reply}
@@ -1511,11 +1508,7 @@ export default function AdminShell({
                     ))}
                   </div>
                   <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-                    {teamFiles.length > 0 && (
-                      <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 4px" }}>
-                        {teamFiles.length} file{teamFiles.length === 1 ? "" : "s"} attached
-                      </p>
-                    )}
+                    <FilePreviewStrip files={teamFiles} onRemove={(i) => setTeamFiles((prev) => prev.filter((_, idx) => idx !== i))} />
                     <form onSubmit={sendTeamMessage} style={{ display: "flex", gap: 8 }}>
                       <input
                         value={teamDraft}

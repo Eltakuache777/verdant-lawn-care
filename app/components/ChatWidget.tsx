@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { useChat } from "./ChatContext";
+import FilePreviewStrip from "./FilePreviewStrip";
 
 type Msg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
 
@@ -216,11 +217,7 @@ export default function ChatWidget() {
                   background: "var(--bg-elevated)",
                 }}
               >
-                {files.length > 0 && (
-                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 6px" }}>
-                    {t("chatFilesAttached", { count: files.length, s: files.length === 1 ? "" : "s" })}
-                  </p>
-                )}
+                <FilePreviewStrip files={files} onRemove={(i) => setFiles((prev) => prev.filter((_, idx) => idx !== i))} />
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     value={draft}
