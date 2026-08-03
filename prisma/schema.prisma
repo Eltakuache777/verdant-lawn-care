@@ -141,6 +141,16 @@ model QuoteRequest {
   createdAt     DateTime @default(now())
 }
 
+// Free-text "what would make this better" submissions from the feedback button —
+// separate from the support chat, which is for specific issues needing a reply.
+model Feedback {
+  id        String   @id @default(cuid())
+  message   String
+  email     String?
+  page      String?
+  createdAt DateTime @default(now())
+}
+
 // A single private message in a customer <-> admin conversation, grouped by customerEmail.
 model ChatMessage {
   id              String   @id @default(cuid())

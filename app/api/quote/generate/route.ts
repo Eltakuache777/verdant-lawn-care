@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(updated);
   } catch (err: any) {
+    console.error("Design generation failed:", err?.stack ?? err);
     await prisma.quoteRequest.update({ where: { id: quoteRequestId }, data: { status: "paid" } });
     return NextResponse.json({ error: err.message ?? "Generation failed" }, { status: 500 });
   }

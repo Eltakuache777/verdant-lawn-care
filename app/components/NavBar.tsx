@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { useChat } from "./ChatContext";
 import { useAssistant } from "./AssistantContext";
+import { useFeedback } from "./FeedbackContext";
 import { LANGUAGES } from "@/lib/i18n";
 
 type Session = { loggedIn: boolean; role?: "admin" | "worker" | "customer"; email?: string; name?: string };
@@ -21,6 +22,7 @@ export default function NavBar() {
   const { lang, setLang, t } = useLanguage();
   const { toggle } = useChat();
   const { toggle: toggleAssistant } = useAssistant();
+  const { toggle: toggleFeedback } = useFeedback();
   const pathname = usePathname();
   const showCustomerWidgets = !pathname?.startsWith("/admin") && !pathname?.startsWith("/worker");
   const [session, setSession] = useState<Session | null>(null);
@@ -164,6 +166,21 @@ export default function NavBar() {
           }}
         >
           🤖 {t("assistantNavLabel")}
+        </button>
+      )}
+      {showCustomerWidgets && (
+        <button
+          type="button"
+          onClick={toggleFeedback}
+          style={{
+            background: "transparent",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+            fontSize: 16,
+            padding: 0,
+          }}
+        >
+          💡 {t("feedbackTitle")}
         </button>
       )}
       <a href="/materials" style={{ color: "var(--text-muted)", textDecoration: "none" }}>

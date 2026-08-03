@@ -75,7 +75,7 @@ type CustomerDetail = CustomerRow & {
     amountPaid: number | null;
   }[];
 };
-type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team";
+type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team" | "feedback";
 type TeamThread = {
   id: string;
   isGroup: boolean;
@@ -86,6 +86,7 @@ type TeamThread = {
   lastAt: string;
 };
 type TeamMsg = { id: string; senderEmail: string; senderName: string | null; body: string; attachmentUrls: string[]; createdAt: string };
+type FeedbackRow = { id: string; message: string; email: string | null; page: string | null; createdAt: string };
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
@@ -100,6 +101,7 @@ const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "reports", icon: "📊", label: "Reports" },
   { key: "design", icon: "🎨", label: "Design" },
   { key: "workers", icon: "👥", label: "Workers" },
+  { key: "feedback", icon: "💡", label: "Feedback" },
 ];
 // Shared by /admin and /worker — the owner and workers have equal, full access
 // (except reports visibility — see ReportData above).
@@ -132,6 +134,10 @@ export default function AdminShell({
   const [wpAmount, setWpAmount] = useState("");
   const [wpNote, setWpNote] = useState("");
   const [wpSubmitting, setWpSubmitting] = useState(false);
+
+  // Feedback submitted via the customer-facing "Tell us what to improve" button.
+  const [feedbackList, setFeedbackList] = useState<FeedbackRow[]>([]);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // Customers list + per-customer recurring lawn-care plan / custom pricing.
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
@@ -274,6 +280,7 @@ export default function AdminShell({
     loadWorkers();
     loadCustomers();
     loadTeamThreads();
+    loadFeedback();
     // Catches up any recurring plans that came due since the app was last opened.
     fetch("/api/recurring/run-due", { method: "POST" })
       .then((r) => (r.ok ? r.json() : null))
@@ -298,6 +305,16 @@ export default function AdminShell({
       })
       .then(setCustomers)
       .catch(() => setCustomersError("Could not load customers."));
+  }
+
+  function loadFeedback() {
+    fetch("/api/feedback")
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load feedback");
+        return r.json();
+      })
+      .then(setFeedbackList)
+      .catch(() => setFeedbackError("Could not load feedback."));
   }
 
   function openCustomer(id: string) {
@@ -1928,6 +1945,39 @@ export default function AdminShell({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {view === "feedback" && (
+          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+            <div className="card" style={{ margin: 0 }}>
+              <h1>Feedback</h1>
+              <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
+                What customers submitted through the "Tell us what to improve" button.
+              </p>
+              {feedbackError && <p style={{ color: "var(--gold)" }}>{feedbackError}</p>}
+              {feedbackList.length === 0 && !feedbackError && (
+                <p style={{ color: "var(--text-muted)" }}>No feedback yet.</p>
+              )}
+              {feedbackList.map((f) => (
+                <div
+                  key={f.id}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}
+                >
+                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{f.message}</p>
+                  <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                    {new Date(f.createdAt).toLocaleString()}
+                    {f.email ? ` — ${f.email}` : ""}
+                    {f.page ? ` — ${f.page}` : ""}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         )}

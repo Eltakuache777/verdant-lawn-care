@@ -43,6 +43,7 @@ export async function middleware(req: NextRequest) {
     path.startsWith("/api/staff-chat/threads/") ||
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT") ||
+    (path === "/api/feedback" && m === "GET") ||
     (path.startsWith("/api/bookings/") && m === "PATCH");
 
   if (isStaffOnly) {
@@ -67,6 +68,7 @@ export const config = {
     "/account",
     "/api/services",
     "/api/materials",
+    "/api/feedback",
     "/api/bookings",
     "/api/bookings/:id",
     "/api/chat/threads",
