@@ -21,8 +21,16 @@ export async function generateDesignConcept(
     throw new Error("STABILITY_API_KEY isn't configured");
   }
 
+  // Phone camera photos routinely exceed SD3's accepted pixel-count limit and
+  // arrive as HEIC/JPEG at full resolution — resize before sending, same as
+  // generateDesignVideo already does for its own input.
+  const resizedInput = await sharp(inputImage)
+    .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
+    .png()
+    .toBuffer();
+
   const formData = new FormData();
-  formData.append("image", new Blob([inputImage]), "input.png");
+  formData.append("image", new Blob([resizedInput]), "input.png");
   formData.append(
     "prompt",
     `Keep the exact same yard, layout, fence, structures, and camera angle as the reference photo — only replace the ground surface and add landscaping elements. Professional landscape design concept, photorealistic: ${prompt}`

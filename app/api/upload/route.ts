@@ -13,7 +13,7 @@ import sharp from "sharp";
 // if photos need to survive long-term, swap this for real cloud storage.
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB
-const MAX_FILES = 5;
+const MAX_FILES = 15;
 
 // Broad, permissive checks instead of an exact mime-type whitelist — phones report a
 // huge variety of image/video mime types (HEIC on iPhone, 3gpp/x-matroska on Android,
