@@ -190,6 +190,7 @@ export default function AdminShell({
   const [designEmail, setDesignEmail] = useState("");
   const [designDescription, setDesignDescription] = useState("");
   const [designFiles, setDesignFiles] = useState<File[]>([]);
+  const [designTier, setDesignTier] = useState<"standard" | "better" | "highest">("standard");
   const [designSubmitting, setDesignSubmitting] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
@@ -670,6 +671,7 @@ export default function AdminShell({
           customerEmail: designEmail,
           photoUrls: urls,
           description: designDescription,
+          tier: designTier,
         }),
       });
       if (!genRes.ok) {
@@ -1734,8 +1736,8 @@ export default function AdminShell({
             <div className="card" style={{ margin: 0 }}>
               <h1>Free AI design (owner)</h1>
               <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
-                Always runs at the highest tier ({DESIGN_TIERS.highest.concepts}+ concepts) — no charge, no
-                checkout.
+                No charge, no checkout — but each concept still spends real Stability AI credits, so pick a
+                smaller tier for testing and save "Highest" for when you actually want the full set.
               </p>
               <form onSubmit={submitAdminDesign}>
                 <label>Customer name (who this design is for)</label>
@@ -1743,6 +1745,15 @@ export default function AdminShell({
 
                 <label>Customer email</label>
                 <input type="email" value={designEmail} onChange={(e) => setDesignEmail(e.target.value)} required />
+
+                <label>Tier (how many concepts to generate)</label>
+                <select value={designTier} onChange={(e) => setDesignTier(e.target.value as typeof designTier)}>
+                  {(Object.keys(DESIGN_TIERS) as (keyof typeof DESIGN_TIERS)[]).map((key) => (
+                    <option key={key} value={key}>
+                      {DESIGN_TIERS[key].label} — {DESIGN_TIERS[key].note}
+                    </option>
+                  ))}
+                </select>
 
                 <label>Describe what you want</label>
                 <textarea
