@@ -44,7 +44,8 @@ export async function middleware(req: NextRequest) {
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT") ||
     (path === "/api/feedback" && m === "GET") ||
-    (path.startsWith("/api/bookings/") && m === "PATCH");
+    (path.startsWith("/api/bookings/") && m === "PATCH") ||
+    (path.startsWith("/api/chat/") && m === "DELETE");
 
   if (isStaffOnly) {
     const role = await roleOf(req);
@@ -73,6 +74,7 @@ export const config = {
     "/api/bookings/:id",
     "/api/chat/threads",
     "/api/chat/reply",
+    "/api/chat/:id",
     "/api/reports",
     "/api/reports/worker-payments",
     "/api/design/admin-generate",
@@ -83,5 +85,6 @@ export const config = {
     "/api/recurring/run-due",
     "/api/staff-chat/threads",
     "/api/staff-chat/threads/:id/messages",
+    "/api/staff-chat/threads/:id/messages/:messageId",
   ],
 };

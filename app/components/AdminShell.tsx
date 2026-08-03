@@ -16,6 +16,7 @@ type Booking = {
   isEmergency: boolean;
   totalPrice: number;
   status: string;
+  paymentMethod: string | null;
   amountPaid: number | null;
   assignedWorkerEmail: string | null;
   assignedWorkerName: string | null;
@@ -430,6 +431,14 @@ export default function AdminShell({
     }
   }
 
+  async function deleteTeamMessage(id: string) {
+    if (!selectedTeamThreadId) return;
+    if (!confirm("Delete this message for everyone?")) return;
+    setTeamMessages((prev) => prev.filter((m) => m.id !== id));
+    await fetch(`/api/staff-chat/threads/${selectedTeamThreadId}/messages/${id}`, { method: "DELETE" });
+    loadTeamThreads();
+  }
+
   function toggleNewChatEmail(email: string) {
     setNewChatEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
   }
@@ -748,6 +757,13 @@ export default function AdminShell({
     }
   }
 
+  async function deleteMessage(id: string) {
+    if (!confirm("Delete this message for everyone?")) return;
+    setThread((prev) => prev.filter((m) => m.id !== id));
+    await fetch(`/api/chat/${id}`, { method: "DELETE" });
+    if (selectedEmail) loadThreads();
+  }
+
   function updatePrice(name: string, value: string) {
     setServices((prev) =>
       prev.map((s) => (s.name === name ? { ...s, basePrice: parseFloat(value) || 0 } : s))
@@ -978,6 +994,12 @@ export default function AdminShell({
                     <span style={{ color: b.status === "completed" ? "var(--accent)" : "var(--text-muted)" }}>
                       {b.status === "completed" ? "✓ completed" : b.status}
                     </span>
+                    {b.paymentMethod && (
+                      <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                        {" "}
+                        — pays via {b.paymentMethod[0].toUpperCase() + b.paymentMethod.slice(1)}
+                      </span>
+                    )}
                   </p>
 
                   <div style={{ margin: "6px 0", display: "flex", alignItems: "center", gap: 6 }}>
@@ -1116,10 +1138,11 @@ export default function AdminShell({
                       <div
                         key={m.id}
                         style={{
+                          position: "relative",
                           alignSelf: m.sender === "admin" ? "flex-end" : "flex-start",
                           background: m.sender === "admin" ? "var(--accent)" : "var(--bg-input)",
                           color: m.sender === "admin" ? "#06130c" : "var(--text)",
-                          padding: "8px 10px",
+                          padding: "8px 24px 8px 10px",
                           borderRadius: 8,
                           maxWidth: "80%",
                           minWidth: 0,
@@ -1128,6 +1151,31 @@ export default function AdminShell({
                           wordBreak: "break-word",
                         }}
                       >
+                        <button
+                          type="button"
+                          onClick={() => deleteMessage(m.id)}
+                          aria-label="Delete message"
+                          title="Delete message"
+                          style={{
+                            position: "absolute",
+                            top: 4,
+                            right: 4,
+                            width: 16,
+                            height: 16,
+                            padding: 0,
+                            borderRadius: "50%",
+                            background: "rgba(0,0,0,0.25)",
+                            color: "inherit",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          ✕
+                        </button>
                         <div>{m.body}</div>
                         {m.attachmentUrls && m.attachmentUrls.length > 0 && (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
@@ -1503,9 +1551,10 @@ export default function AdminShell({
                         )}
                         <div
                           style={{
+                            position: "relative",
                             background: m.senderEmail === myEmail ? "var(--accent)" : "var(--bg-input)",
                             color: m.senderEmail === myEmail ? "#06130c" : "var(--text)",
-                            padding: "8px 10px",
+                            padding: "8px 24px 8px 10px",
                             borderRadius: 8,
                             minWidth: 0,
                             fontSize: 13,
@@ -1513,6 +1562,31 @@ export default function AdminShell({
                             wordBreak: "break-word",
                           }}
                         >
+                          <button
+                            type="button"
+                            onClick={() => deleteTeamMessage(m.id)}
+                            aria-label="Delete message"
+                            title="Delete message"
+                            style={{
+                              position: "absolute",
+                              top: 4,
+                              right: 4,
+                              width: 16,
+                              height: 16,
+                              padding: 0,
+                              borderRadius: "50%",
+                              background: "rgba(0,0,0,0.25)",
+                              color: "inherit",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              lineHeight: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            ✕
+                          </button>
                           {m.body}
                           {m.attachmentUrls && m.attachmentUrls.length > 0 && (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>

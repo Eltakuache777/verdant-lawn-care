@@ -19,6 +19,7 @@ const BookingSchema = z.object({
   address: z.string().min(3),
   scheduledFor: z.string(), // ISO datetime from the date+time picker
   isEmergency: z.boolean().default(false),
+  paymentMethod: z.enum(["cash", "zelle", "venmo"]),
 });
 
 export async function POST(req: NextRequest) {
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
       emergencyFee,
       basePrice,
       totalPrice,
+      paymentMethod: data.paymentMethod,
     },
   });
 
@@ -82,6 +84,7 @@ export async function POST(req: NextRequest) {
       address: booking.address,
       scheduledFor: booking.scheduledFor,
       totalPrice: booking.totalPrice,
+      paymentMethod: booking.paymentMethod,
     });
   } catch (err) {
     console.error("Failed to send booking confirmation email:", err);
@@ -98,6 +101,7 @@ export async function POST(req: NextRequest) {
       address: booking.address,
       scheduledFor: booking.scheduledFor,
       totalPrice: booking.totalPrice,
+      paymentMethod: booking.paymentMethod,
     });
   } catch (err) {
     console.error("Failed to send new booking alert:", err);

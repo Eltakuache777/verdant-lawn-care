@@ -77,6 +77,7 @@ model Booking {
   basePrice     Float
   totalPrice    Float
   status        String   @default("pending") // pending | confirmed | completed | cancelled
+  paymentMethod String? // "cash" | "zelle" | "venmo" — how the customer said they'll pay, chosen at booking time
   amountPaid    Float? // actual amount collected — entered by the owner once the job's done
   completedAt   DateTime?
   assignedWorkerEmail String? // which staff member (admin or worker) is attending this job

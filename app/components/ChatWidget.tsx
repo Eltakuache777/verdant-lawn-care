@@ -45,8 +45,17 @@ export default function ChatWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identified, open]);
 
+  const lastMessageIdRef = useRef<string | null>(null);
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    // The 5-second poll re-fetches and re-sets `messages` even when nothing
+    // changed, which used to force-scroll to the bottom every time and made
+    // it impossible to read back through the conversation — only scroll when
+    // a genuinely new message shows up (or on first load).
+    if (lastId !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = lastId;
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    }
   }, [messages]);
 
   async function loadMessages() {

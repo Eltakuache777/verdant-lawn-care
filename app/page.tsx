@@ -17,6 +17,12 @@ const FREQUENCY_KEYS: Record<string, DictKey> = {
   bimonthly: "freqBimonthly",
 };
 
+const PAYMENT_METHOD_LABEL_KEYS: Record<"cash" | "zelle" | "venmo", DictKey> = {
+  cash: "paymentMethodCash",
+  zelle: "paymentMethodZelle",
+  venmo: "paymentMethodVenmo",
+};
+
 type ServiceRow = { name: string; basePrice: number };
 type MowingEstimate = { sqft: number; total: number | null; overgrownFee: number; needsManualQuote: boolean };
 type AvailabilityDay = { date: string; count: number; times: string[] };
@@ -54,6 +60,7 @@ export default function BookPage() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [isEmergency, setIsEmergency] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "zelle" | "venmo" | "">("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -458,6 +465,10 @@ export default function BookPage() {
       setStatus(t("pleaseSelectService"));
       return;
     }
+    if (!paymentMethod) {
+      setStatus(t("pleaseSelectPaymentMethod"));
+      return;
+    }
     setIsSubmitting(true);
     setStatus(t("bookingBtn"));
     try {
@@ -474,6 +485,7 @@ export default function BookPage() {
           address,
           scheduledFor: new Date(`${date}T${time}`).toISOString(),
           isEmergency,
+          paymentMethod,
         }),
       });
       if (res.ok) {
@@ -871,6 +883,28 @@ export default function BookPage() {
 
           <label>{t("timeLabel")}</label>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+
+          <label>{t("paymentMethodLabel")}</label>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            {(["cash", "zelle", "venmo"] as const).map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => setPaymentMethod(method)}
+                style={{
+                  flex: 1,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: paymentMethod === method ? "2px solid var(--accent)" : "1px solid var(--border)",
+                  background: paymentMethod === method ? "rgba(52,214,127,0.15)" : "var(--bg-input)",
+                  color: "var(--text)",
+                  fontWeight: paymentMethod === method ? 700 : 400,
+                }}
+              >
+                {t(PAYMENT_METHOD_LABEL_KEYS[method])}
+              </button>
+            ))}
+          </div>
 
           <label>
             <input
