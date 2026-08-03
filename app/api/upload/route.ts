@@ -12,7 +12,8 @@ import { heicBufferToJpeg } from "@/lib/imageProcessing";
 // Render's disk also isn't guaranteed persistent across deploys — fine for now, but
 // if photos need to survive long-term, swap this for real cloud storage.
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25MB
+const MAX_VIDEO_BYTES = 300 * 1024 * 1024; // 300MB — enough for a 3-4 minute phone video
 const MAX_FILES = 15;
 
 // Broad, permissive checks instead of an exact mime-type whitelist — phones report a
@@ -61,8 +62,12 @@ export async function POST(req: NextRequest) {
 
   const urls: string[] = [];
   for (const file of files) {
-    if (file.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: `${file.name} is too large (max 25MB)` }, { status: 400 });
+    const maxBytes = isVideo(file.type) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (file.size > maxBytes) {
+      return NextResponse.json(
+        { error: `${file.name} is too large (max ${Math.round(maxBytes / (1024 * 1024))}MB)` },
+        { status: 400 }
+      );
     }
     if (!isImage(file.type) && !isVideo(file.type) && !isHeic(file.type, file.name)) {
       return NextResponse.json({ error: `${file.name} isn't a supported photo or video` }, { status: 400 });
