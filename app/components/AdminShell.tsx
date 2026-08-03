@@ -187,6 +187,8 @@ export default function AdminShell({
   const [designSubmitting, setDesignSubmitting] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
+  const designPhotoInputRef = useRef<HTMLInputElement>(null);
+  const designVideoInputRef = useRef<HTMLInputElement>(null);
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -1746,13 +1748,54 @@ export default function AdminShell({
                 />
 
                 <label>Photos &amp; videos of the area</label>
+                <FilePreviewStrip files={designFiles} onRemove={(i) => setDesignFiles((prev) => prev.filter((_, idx) => idx !== i))} />
                 <input
                   ref={designFileInputRef}
                   type="file"
                   accept="image/*,video/*"
                   multiple
-                  onChange={(e) => setDesignFiles(Array.from(e.target.files ?? []))}
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    setDesignFiles((prev) => [...prev, ...picked]);
+                    e.target.value = "";
+                  }}
+                  style={{ display: "none" }}
                 />
+                <input
+                  ref={designPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    setDesignFiles((prev) => [...prev, ...picked]);
+                    e.target.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+                <input
+                  ref={designVideoInputRef}
+                  type="file"
+                  accept="video/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const picked = Array.from(e.target.files ?? []);
+                    setDesignFiles((prev) => [...prev, ...picked]);
+                    e.target.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                  <button type="button" onClick={() => designPhotoInputRef.current?.click()} aria-label="Take a photo">
+                    📷
+                  </button>
+                  <button type="button" onClick={() => designVideoInputRef.current?.click()} aria-label="Record a video">
+                    🎥
+                  </button>
+                  <button type="button" onClick={() => designFileInputRef.current?.click()} aria-label="Attach photos or videos">
+                    📎
+                  </button>
+                </div>
                 {designFiles.length > 0 && (
                   <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{designFiles.length} file(s) selected</p>
                 )}
