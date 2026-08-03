@@ -7,7 +7,6 @@ type QuoteRequest = {
   id: string;
   status: string;
   conceptUrls: string[];
-  conceptVideoUrls: string[];
   conceptCount: number;
   tier: string;
 };
@@ -75,32 +74,6 @@ function DesignSuccessContent() {
                 </a>
               ))}
             </div>
-
-            {quote.conceptVideoUrls.length > 0 && (
-              <>
-                <p className="accent" style={{ marginTop: 24 }}>
-                  ▶ {t("designVideosReady")}
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                    gap: 12,
-                    marginTop: 12,
-                  }}
-                >
-                  {quote.conceptVideoUrls.map((url) => (
-                    <video
-                      key={url}
-                      src={url}
-                      controls
-                      loop
-                      style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
 
             <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 16 }}>
               {t("designChangesNote")}

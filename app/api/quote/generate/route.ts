@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDesignConcept, generateDesignVideo } from "@/lib/stability";
+import { generateDesignConcept } from "@/lib/stability";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -11,11 +11,6 @@ import crypto from "crypto";
 // NOTE: this runs the whole batch synchronously in one request, which is fine
 // on Render's persistent server (no serverless timeout) but would need to move
 // to a background job/queue on a host with hard request time limits.
-
-// Video clips cost several times more in AI credits than a still image, so only
-// the first few concepts of every order get one — cost stays flat regardless of
-// how large a tier (3/15/50 concepts) the customer paid for.
-const VIDEO_CONCEPT_COUNT = 3;
 
 function isImageUrl(url: string) {
   return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(url);
@@ -60,7 +55,6 @@ export async function POST(req: NextRequest) {
     const photosToUse = referencePhotoUrls.length > 0 ? referencePhotoUrls : quote.photoUrls;
 
     const conceptUrls: string[] = [];
-    const conceptVideoUrls: string[] = [];
     for (let i = 0; i < quote.conceptCount; i++) {
       const referenceUrl = photosToUse[i % photosToUse.length];
       const inputImagePath = path.join(uploadDir, path.basename(referenceUrl));
@@ -73,23 +67,11 @@ export async function POST(req: NextRequest) {
       const filename = `${crypto.randomUUID()}.png`;
       await writeFile(path.join(uploadDir, filename), resultBuffer);
       conceptUrls.push(`/api/files/${filename}`);
-
-      if (i < VIDEO_CONCEPT_COUNT) {
-        try {
-          const videoBuffer = await generateDesignVideo(resultBuffer);
-          const videoFilename = `${crypto.randomUUID()}.mp4`;
-          await writeFile(path.join(uploadDir, videoFilename), videoBuffer);
-          conceptVideoUrls.push(`/api/files/${videoFilename}`);
-        } catch (videoErr) {
-          // A failed video clip shouldn't sink the whole order — the still image concept is still delivered.
-          console.error(`Video generation failed for concept ${i}:`, videoErr);
-        }
-      }
     }
 
     const updated = await prisma.quoteRequest.update({
       where: { id: quoteRequestId },
-      data: { conceptUrls, conceptVideoUrls, status: "generated" },
+      data: { conceptUrls, status: "generated" },
     });
     return NextResponse.json(updated);
   } catch (err: any) {
