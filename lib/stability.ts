@@ -15,7 +15,7 @@ const imageToVideoResultUrl = (id: string) => `https://api.stability.ai/v2beta/i
 export async function generateDesignConcept(
   inputImage: Buffer,
   prompt: string,
-  strength = 0.3
+  strength = 0.45
 ): Promise<Buffer> {
   const apiKey = process.env.STABILITY_API_KEY;
   if (!apiKey) {
@@ -32,11 +32,11 @@ export async function generateDesignConcept(
   formData.append("image", new Blob([resizedInput]), "input.png");
   formData.append(
     "prompt",
-    `Keep the exact same yard, layout, fence, structures, and camera angle as the reference photo — only replace the ground surface and add landscaping elements. Professional landscape design concept, photorealistic: ${prompt}`
+    `Photorealistic professional landscaping redesign, apply these exact changes to the yard in the photo: ${prompt}. Keep the same house, fence, and camera angle — this is the same yard, just improved, not a different property.`
   );
   formData.append(
     "negative_prompt",
-    "different location, different house, different yard, different camera angle, different perspective"
+    "different house, different property, different camera angle, unchanged from original, no visible changes"
   );
   formData.append("mode", "image-to-image");
   formData.append("strength", String(strength));
