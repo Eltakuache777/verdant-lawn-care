@@ -9,6 +9,7 @@ type QuoteRequest = {
   conceptUrls: string[];
   conceptCount: number;
   tier: string;
+  amountPaid: number;
 };
 
 function DesignSuccessContent() {
@@ -17,6 +18,8 @@ function DesignSuccessContent() {
   const quoteRequestId = searchParams.get("qr");
   const [quote, setQuote] = useState<QuoteRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!quoteRequestId) {
@@ -38,6 +41,32 @@ function DesignSuccessContent() {
       })
       .catch(() => setError(t("designGenerationError")));
   }, [quoteRequestId]);
+
+  async function regenerate() {
+    if (!quote) return;
+    setRegenerateError(null);
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/design/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteRequestId: quote.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRegenerateError(data.error ?? t("designGenerationError"));
+        return;
+      }
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        window.location.href = `/design/success?qr=${data.quoteRequestId}`;
+      }
+    } catch {
+      setRegenerateError(t("designGenerationError"));
+      setRegenerating(false);
+    }
+  }
 
   return (
     <main>
@@ -78,6 +107,22 @@ function DesignSuccessContent() {
             <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 16 }}>
               {t("designChangesNote")}
             </p>
+
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+              <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 10 }}>
+                {t("regenerateNote")}
+              </p>
+              <button type="button" onClick={regenerate} disabled={regenerating}>
+                {regenerating
+                  ? t("regenerateSending")
+                  : quote.amountPaid === 0
+                    ? t("regenerateFreeBtn")
+                    : t("regeneratePaidBtn")}
+              </button>
+              {regenerateError && (
+                <p style={{ color: "var(--gold)", marginTop: 8 }}>{regenerateError}</p>
+              )}
+            </div>
           </>
         )}
       </div>
