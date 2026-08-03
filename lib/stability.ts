@@ -3,14 +3,18 @@
 // this is called in a loop to produce a tier's full concept count.
 import sharp from "sharp";
 
-const STABILITY_URL = "https://api.stability.ai/v2beta/stable-image/generate/core";
+// stable-image/generate/core is text-to-image ONLY — it silently ignores the
+// "image"/"mode"/"strength" fields instead of erroring, which is why concepts
+// looked nothing like the customer's actual yard. sd3 is the endpoint that
+// actually supports image-to-image editing of an uploaded photo.
+const STABILITY_URL = "https://api.stability.ai/v2beta/stable-image/generate/sd3";
 const IMAGE_TO_VIDEO_URL = "https://api.stability.ai/v2beta/image-to-video";
 const imageToVideoResultUrl = (id: string) => `https://api.stability.ai/v2beta/image-to-video/result/${id}`;
 
 export async function generateDesignConcept(
   inputImage: Buffer,
   prompt: string,
-  strength = 0.65
+  strength = 0.55
 ): Promise<Buffer> {
   const apiKey = process.env.STABILITY_API_KEY;
   if (!apiKey) {
@@ -21,10 +25,11 @@ export async function generateDesignConcept(
   formData.append("image", new Blob([inputImage]), "input.png");
   formData.append(
     "prompt",
-    `Professional landscape design concept, photorealistic: ${prompt}`
+    `Professional landscape design concept, photorealistic, same yard and same camera angle as the reference photo: ${prompt}`
   );
   formData.append("mode", "image-to-image");
   formData.append("strength", String(strength));
+  formData.append("model", "sd3.5-large");
   formData.append("output_format", "png");
 
   const res = await fetch(STABILITY_URL, {
