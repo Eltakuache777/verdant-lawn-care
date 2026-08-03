@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import sharp from "sharp";
+import { heicBufferToJpeg } from "@/lib/imageProcessing";
 
 // Stores customer-attached photos/videos of a project idea under public/uploads,
 // but they're served back out through /api/files/[filename] (see that route) rather
@@ -71,14 +71,15 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Most browsers (everything but Safari) can't display HEIC inline, so try
-    // converting to JPEG for wider compatibility — but sharp's bundled libvips
-    // often can't actually decode real HEIC (licensing), so if that fails,
-    // fall back to storing the original file rather than failing the whole
-    // upload. A photo that doesn't preview perfectly beats one that never sent.
+    // converting to JPEG for wider compatibility — heicBufferToJpeg tries
+    // sharp first, falls back to heic-convert for real photos that trip
+    // sharp's libheif security limits, and only as a last resort do we store
+    // the original file rather than failing the whole upload. A photo that
+    // doesn't preview perfectly beats one that never sent.
     let filename: string;
     if (isHeic(file.type, file.name)) {
       try {
-        const jpeg = await sharp(buffer).rotate().jpeg({ quality: 85 }).toBuffer();
+        const jpeg = await heicBufferToJpeg(buffer);
         filename = `${crypto.randomUUID()}.jpg`;
         await writeFile(path.join(uploadDir, filename), jpeg);
       } catch (err) {

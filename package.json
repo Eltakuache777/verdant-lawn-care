@@ -17,6 +17,7 @@
     "@capacitor/core": "^8.4.2",
     "@prisma/client": "5.18.0",
     "@sendgrid/mail": "^8.1.6",
+    "heic-convert": "^2.1.0",
     "next": "14.2.35",
     "prisma": "5.18.0",
     "react": "18.3.1",

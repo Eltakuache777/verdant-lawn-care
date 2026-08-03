@@ -2,6 +2,7 @@
 // Each call transforms one input photo into one landscaping design concept —
 // this is called in a loop to produce a tier's full concept count.
 import sharp from "sharp";
+import { resizeForApi } from "./imageProcessing";
 
 // stable-image/generate/core is text-to-image ONLY — it silently ignores the
 // "image"/"mode"/"strength" fields instead of erroring, which is why concepts
@@ -23,11 +24,9 @@ export async function generateDesignConcept(
 
   // Phone camera photos routinely exceed SD3's accepted pixel-count limit and
   // arrive as HEIC/JPEG at full resolution — resize before sending, same as
-  // generateDesignVideo already does for its own input.
-  const resizedInput = await sharp(inputImage)
-    .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
-    .png()
-    .toBuffer();
+  // generateDesignVideo already does for its own input. resizeForApi also
+  // falls back to heic-convert if the file is a raw, still-undecoded HEIC.
+  const resizedInput = await resizeForApi(inputImage, 1536);
 
   const formData = new FormData();
   formData.append("image", new Blob([resizedInput]), "input.png");
