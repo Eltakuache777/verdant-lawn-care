@@ -231,7 +231,8 @@ export default function ChatWidget() {
                     accept="image/*,video/*"
                     multiple
                     onChange={(e) => {
-                      setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                      const picked = Array.from(e.target.files ?? []);
+                      setFiles((prev) => [...prev, ...picked]);
                       e.target.value = "";
                     }}
                     style={{ display: "none" }}
@@ -242,7 +243,8 @@ export default function ChatWidget() {
                     accept="image/*"
                     capture="environment"
                     onChange={(e) => {
-                      setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                      const picked = Array.from(e.target.files ?? []);
+                      setFiles((prev) => [...prev, ...picked]);
                       e.target.value = "";
                     }}
                     style={{ display: "none" }}
@@ -253,7 +255,8 @@ export default function ChatWidget() {
                     accept="video/*"
                     capture="environment"
                     onChange={(e) => {
-                      setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                      const picked = Array.from(e.target.files ?? []);
+                      setFiles((prev) => [...prev, ...picked]);
                       e.target.value = "";
                     }}
                     style={{ display: "none" }}

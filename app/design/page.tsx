@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { DESIGN_TIERS, DesignTierKey } from "@/lib/designTiers";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import type { DictKey } from "@/lib/i18n";
+import FilePreviewStrip from "@/app/components/FilePreviewStrip";
 
 const TIER_LABEL_KEYS: Record<DesignTierKey, DictKey> = {
   standard: "designTierLabelStandard",
@@ -25,6 +26,8 @@ export default function DesignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   async function startCheckout(e: React.FormEvent) {
     e.preventDefault();
@@ -149,13 +152,54 @@ export default function DesignPage() {
           />
 
           <label>{t("photosVideosLabel")}</label>
+          <FilePreviewStrip files={files} onRemove={(i) => setFiles((prev) => prev.filter((_, idx) => idx !== i))} />
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
             multiple
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              setFiles((prev) => [...prev, ...picked]);
+              e.target.value = "";
+            }}
+            style={{ display: "none" }}
           />
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              setFiles((prev) => [...prev, ...picked]);
+              e.target.value = "";
+            }}
+            style={{ display: "none" }}
+          />
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              setFiles((prev) => [...prev, ...picked]);
+              e.target.value = "";
+            }}
+            style={{ display: "none" }}
+          />
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <button type="button" onClick={() => photoInputRef.current?.click()} aria-label={t("chatCameraAria")}>
+              📷
+            </button>
+            <button type="button" onClick={() => videoInputRef.current?.click()} aria-label={t("chatVideoAria")}>
+              🎥
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label={t("chatAttachAria")}>
+              📎
+            </button>
+          </div>
           {files.length > 0 && (
             <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
               {files.length} {t("filesSelected")}

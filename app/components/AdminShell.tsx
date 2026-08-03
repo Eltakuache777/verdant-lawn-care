@@ -1139,7 +1139,8 @@ export default function AdminShell({
                         accept="image/*,video/*"
                         multiple
                         onChange={(e) => {
-                          setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          const picked = Array.from(e.target.files ?? []);
+                          setReplyFiles((prev) => [...prev, ...picked]);
                           e.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -1150,7 +1151,8 @@ export default function AdminShell({
                         accept="image/*"
                         capture="environment"
                         onChange={(e) => {
-                          setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          const picked = Array.from(e.target.files ?? []);
+                          setReplyFiles((prev) => [...prev, ...picked]);
                           e.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -1161,7 +1163,8 @@ export default function AdminShell({
                         accept="video/*"
                         capture="environment"
                         onChange={(e) => {
-                          setReplyFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          const picked = Array.from(e.target.files ?? []);
+                          setReplyFiles((prev) => [...prev, ...picked]);
                           e.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -1522,7 +1525,8 @@ export default function AdminShell({
                         accept="image/*,video/*"
                         multiple
                         onChange={(e) => {
-                          setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          const picked = Array.from(e.target.files ?? []);
+                          setTeamFiles((prev) => [...prev, ...picked]);
                           e.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -1533,7 +1537,8 @@ export default function AdminShell({
                         accept="image/*"
                         capture="environment"
                         onChange={(e) => {
-                          setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          const picked = Array.from(e.target.files ?? []);
+                          setTeamFiles((prev) => [...prev, ...picked]);
                           e.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -1544,7 +1549,8 @@ export default function AdminShell({
                         accept="video/*"
                         capture="environment"
                         onChange={(e) => {
-                          setTeamFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                          const picked = Array.from(e.target.files ?? []);
+                          setTeamFiles((prev) => [...prev, ...picked]);
                           e.target.value = "";
                         }}
                         style={{ display: "none" }}
