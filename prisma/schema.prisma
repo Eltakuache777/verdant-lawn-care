@@ -18,6 +18,18 @@ model Service {
   updatedAt DateTime @updatedAt
 }
 
+// Photos/videos of completed jobs, shown on the public "Our Work" page so
+// customers can browse examples before booking. Staff upload these; anyone
+// can view them, optionally filtered by service.
+model PortfolioItem {
+  id               String   @id @default(cuid())
+  service          String // one of the Service names, or "General" for anything not tied to a specific service
+  mediaUrl         String
+  caption          String?
+  uploadedByEmail  String?
+  createdAt        DateTime @default(now())
+}
+
 // Owner-maintained material prices (sod, trees, rocks, bricks, etc.) — no public
 // API exists for real Lowe's/Home Depot pricing, so these are entered by hand.
 model Material {
