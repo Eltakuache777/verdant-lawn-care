@@ -11,19 +11,23 @@ function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
 }
 
+// Fallback background colors for a service card before any photo has been
+// uploaded for it yet — cycles through so each service looks distinct.
+const FALLBACK_COLORS = ["#2d4a6b", "#6b3d2d", "#4a4030", "#2d5a4a", "#4a2d5a", "#5a2d3d"];
+
 export default function PortfolioPage() {
   const { t } = useLanguage();
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [session, setSession] = useState<Session | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<string>("All");
+  const [selectedService, setSelectedService] = useState<string | null>(null);
   const [allItems, setAllItems] = useState<PortfolioItemRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const items = selectedFilter === "All" ? allItems : allItems.filter((i) => i.service === selectedFilter);
-  const countFor = (name: string) => (name === "All" ? allItems.length : allItems.filter((i) => i.service === name).length);
+  const items = selectedService ? allItems.filter((i) => i.service === selectedService) : [];
+  const countFor = (name: string) => allItems.filter((i) => i.service === name).length;
+  const coverFor = (name: string) => allItems.find((i) => i.service === name && !isVideoUrl(i.mediaUrl))?.mediaUrl;
 
   // Staff-only upload state
-  const [uploadService, setUploadService] = useState("");
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -38,10 +42,7 @@ export default function PortfolioPage() {
   useEffect(() => {
     fetch("/api/services")
       .then((r) => r.json())
-      .then((data: ServiceRow[]) => {
-        setServices(data);
-        if (data.length > 0) setUploadService(data[0].name);
-      });
+      .then(setServices);
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then(setSession)
@@ -62,6 +63,7 @@ export default function PortfolioPage() {
 
   async function submitUpload(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedService) return;
     if (files.length === 0) {
       setUploadError(t("portfolioAttachAtLeastOne"));
       return;
@@ -82,7 +84,7 @@ export default function PortfolioPage() {
         await fetch("/api/portfolio", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ service: uploadService, mediaUrl, caption: caption.trim() || undefined }),
+          body: JSON.stringify({ service: selectedService, mediaUrl, caption: caption.trim() || undefined }),
         });
       }
       setFiles([]);
@@ -102,187 +104,199 @@ export default function PortfolioPage() {
 
   return (
     <main>
-      <div className="card" style={{ maxWidth: 900 }}>
+      <div className="card" style={{ maxWidth: 700 }}>
         <p className="brand-label">Verdant Lawn Care</p>
-        <h1>{t("portfolioTitle")}</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>{t("portfolioSubtitle")}</p>
 
-        <div style={{ marginBottom: 20 }}>
-          <label>{t("portfolioFilterLabel")}</label>
-          {["All", ...services.map((s) => s.name)].map((name) => (
-            <label
-              key={name}
+        {!selectedService ? (
+          <>
+            <h1>{t("portfolioTitle")}</h1>
+            <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>{t("portfolioSubtitle")}</p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {services.map((s, i) => {
+                const cover = coverFor(s.name);
+                return (
+                  <button
+                    key={s.name}
+                    type="button"
+                    onClick={() => setSelectedService(s.name)}
+                    style={{
+                      position: "relative",
+                      height: 130,
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                      overflow: "hidden",
+                      padding: 0,
+                      background: cover
+                        ? `url(${cover}) center/cover no-repeat`
+                        : FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+                      textAlign: "left",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.75) 100%)",
+                      }}
+                    />
+                    <div style={{ position: "absolute", left: 16, right: 16, bottom: 12 }}>
+                      <div style={{ color: "#fff", fontWeight: 800, fontSize: 18, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
+                        {s.name}
+                      </div>
+                      <div style={{ color: "#e0e6e2", fontSize: 12, marginTop: 2 }}>
+                        {countFor(s.name)} {countFor(s.name) === 1 ? t("portfolioItemSingular") : t("portfolioItemPlural")}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedService(null)}
+              style={{ background: "transparent", color: "var(--text-muted)", padding: "4px 0", fontWeight: 600, marginBottom: 12 }}
+            >
+              ← {t("portfolioBackToServices")}
+            </button>
+            <h1>{selectedService}</h1>
+            <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>{t("portfolioSubtitle")}</p>
+
+            {isStaff && (
+              <div
+                style={{
+                  border: "1px solid var(--accent)",
+                  background: "rgba(52,214,127,0.06)",
+                  borderRadius: 10,
+                  padding: 16,
+                  marginBottom: 24,
+                }}
+              >
+                <p className="accent" style={{ fontWeight: 700, marginBottom: 10 }}>
+                  {t("portfolioAddWork")}
+                </p>
+                <form onSubmit={submitUpload}>
+                  <label style={{ fontSize: 12 }}>{t("portfolioCaptionLabel")}</label>
+                  <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={t("portfolioCaptionPlaceholder")} />
+
+                  <FilePreviewStrip files={files} onRemove={(i) => setFiles((prev) => prev.filter((_, idx) => idx !== i))} />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={(e) => {
+                      const picked = Array.from(e.target.files ?? []);
+                      setFiles((prev) => [...prev, ...picked]);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const picked = Array.from(e.target.files ?? []);
+                      setFiles((prev) => [...prev, ...picked]);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const picked = Array.from(e.target.files ?? []);
+                      setFiles((prev) => [...prev, ...picked]);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <button type="button" onClick={() => photoInputRef.current?.click()} aria-label={t("chatCameraAria")}>
+                      📷
+                    </button>
+                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label={t("chatVideoAria")}>
+                      🎥
+                    </button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} aria-label={t("chatAttachAria")}>
+                      📎
+                    </button>
+                  </div>
+
+                  {uploadError && <p style={{ color: "var(--gold)" }}>{uploadError}</p>}
+                  <button type="submit" disabled={uploading}>
+                    {uploading ? t("portfolioUploading") : t("portfolioUploadBtn")}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {loading && <p style={{ color: "var(--text-muted)" }}>{t("portfolioLoading")}</p>}
+            {!loading && items.length === 0 && <p style={{ color: "var(--text-muted)" }}>{t("portfolioEmpty")}</p>}
+
+            <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontWeight: "normal",
-                border: selectedFilter === name ? "2px solid var(--accent)" : "1px solid var(--border)",
-                borderRadius: 8,
-                padding: "10px 12px",
-                marginBottom: 8,
-                cursor: "pointer",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                gap: 14,
               }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="radio"
-                  name="portfolioFilter"
-                  style={{ width: "auto", margin: 0 }}
-                  checked={selectedFilter === name}
-                  onChange={() => setSelectedFilter(name)}
-                />
-                <strong>{name}</strong>
-              </span>
-              <span className="accent" style={{ fontWeight: 700 }}>
-                {countFor(name)}
-              </span>
-            </label>
-          ))}
-        </div>
-
-        {isStaff && (
-          <div
-            style={{
-              border: "1px solid var(--accent)",
-              background: "rgba(52,214,127,0.06)",
-              borderRadius: 10,
-              padding: 16,
-              marginBottom: 24,
-            }}
-          >
-            <p className="accent" style={{ fontWeight: 700, marginBottom: 10 }}>
-              {t("portfolioAddWork")}
-            </p>
-            <form onSubmit={submitUpload}>
-              <label style={{ fontSize: 12 }}>{t("portfolioServiceLabel")}</label>
-              <select value={uploadService} onChange={(e) => setUploadService(e.target.value)} style={{ maxWidth: 260 }}>
-                {services.map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-
-              <label style={{ fontSize: 12 }}>{t("portfolioCaptionLabel")}</label>
-              <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={t("portfolioCaptionPlaceholder")} />
-
-              <FilePreviewStrip files={files} onRemove={(i) => setFiles((prev) => prev.filter((_, idx) => idx !== i))} />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  setFiles((prev) => [...prev, ...picked]);
-                  e.target.value = "";
-                }}
-                style={{ display: "none" }}
-              />
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  setFiles((prev) => [...prev, ...picked]);
-                  e.target.value = "";
-                }}
-                style={{ display: "none" }}
-              />
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/*"
-                capture="environment"
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  setFiles((prev) => [...prev, ...picked]);
-                  e.target.value = "";
-                }}
-                style={{ display: "none" }}
-              />
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <button type="button" onClick={() => photoInputRef.current?.click()} aria-label={t("chatCameraAria")}>
-                  📷
-                </button>
-                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label={t("chatVideoAria")}>
-                  🎥
-                </button>
-                <button type="button" onClick={() => fileInputRef.current?.click()} aria-label={t("chatAttachAria")}>
-                  📎
-                </button>
-              </div>
-
-              {uploadError && <p style={{ color: "var(--gold)" }}>{uploadError}</p>}
-              <button type="submit" disabled={uploading}>
-                {uploading ? t("portfolioUploading") : t("portfolioUploadBtn")}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {loading && <p style={{ color: "var(--text-muted)" }}>{t("portfolioLoading")}</p>}
-        {!loading && items.length === 0 && <p style={{ color: "var(--text-muted)" }}>{t("portfolioEmpty")}</p>}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            gap: 14,
-          }}
-        >
-          {items.map((item) => (
-            <div key={item.id} style={{ position: "relative" }}>
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => deleteItem(item.id)}
-                  aria-label="Delete"
-                  title="Delete"
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: 6,
-                    zIndex: 1,
-                    width: 22,
-                    height: 22,
-                    padding: 0,
-                    borderRadius: "50%",
-                    background: "rgba(0,0,0,0.6)",
-                    color: "#fff",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  ✕
-                </button>
-              )}
-              {isVideoUrl(item.mediaUrl) ? (
-                <video src={item.mediaUrl} controls style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }} />
-              ) : (
-                <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={item.mediaUrl}
-                    alt={item.caption ?? item.service}
-                    style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }}
-                  />
-                </a>
-              )}
-              <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-                <span className="accent" style={{ fontWeight: 700 }}>
-                  {item.service}
-                </span>
-                {item.caption ? ` — ${item.caption}` : ""}
-              </p>
+              {items.map((item) => (
+                <div key={item.id} style={{ position: "relative" }}>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => deleteItem(item.id)}
+                      aria-label="Delete"
+                      title="Delete"
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        right: 6,
+                        zIndex: 1,
+                        width: 22,
+                        height: 22,
+                        padding: 0,
+                        borderRadius: "50%",
+                        background: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {isVideoUrl(item.mediaUrl) ? (
+                    <video src={item.mediaUrl} controls style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }} />
+                  ) : (
+                    <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={item.mediaUrl}
+                        alt={item.caption ?? item.service}
+                        style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }}
+                      />
+                    </a>
+                  )}
+                  {item.caption && (
+                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{item.caption}</p>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
     </main>
   );
