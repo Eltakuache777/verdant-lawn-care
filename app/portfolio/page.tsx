@@ -16,8 +16,11 @@ export default function PortfolioPage() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
-  const [items, setItems] = useState<PortfolioItemRow[]>([]);
+  const [allItems, setAllItems] = useState<PortfolioItemRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const items = selectedFilter === "All" ? allItems : allItems.filter((i) => i.service === selectedFilter);
+  const countFor = (name: string) => (name === "All" ? allItems.length : allItems.filter((i) => i.service === name).length);
 
   // Staff-only upload state
   const [uploadService, setUploadService] = useState("");
@@ -47,15 +50,13 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     loadItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFilter]);
+  }, []);
 
   function loadItems() {
     setLoading(true);
-    const query = selectedFilter === "All" ? "" : `?service=${encodeURIComponent(selectedFilter)}`;
-    fetch(`/api/portfolio${query}`)
+    fetch("/api/portfolio")
       .then((r) => r.json())
-      .then(setItems)
+      .then(setAllItems)
       .finally(() => setLoading(false));
   }
 
@@ -95,7 +96,7 @@ export default function PortfolioPage() {
 
   async function deleteItem(id: string) {
     if (!confirm(t("portfolioConfirmDelete"))) return;
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    setAllItems((prev) => prev.filter((i) => i.id !== id));
     await fetch(`/api/portfolio/${id}`, { method: "DELETE" });
   }
 
@@ -106,24 +107,37 @@ export default function PortfolioPage() {
         <h1>{t("portfolioTitle")}</h1>
         <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>{t("portfolioSubtitle")}</p>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+        <div style={{ marginBottom: 20 }}>
+          <label>{t("portfolioFilterLabel")}</label>
           {["All", ...services.map((s) => s.name)].map((name) => (
-            <button
+            <label
               key={name}
-              type="button"
-              onClick={() => setSelectedFilter(name)}
               style={{
-                padding: "8px 14px",
-                fontSize: 13,
-                borderRadius: 20,
-                background: selectedFilter === name ? "var(--accent)" : "transparent",
-                color: selectedFilter === name ? "#06130c" : "var(--text-muted)",
-                border: selectedFilter === name ? "1px solid var(--accent)" : "1px solid var(--border)",
-                fontWeight: selectedFilter === name ? 700 : 400,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontWeight: "normal",
+                border: selectedFilter === name ? "2px solid var(--accent)" : "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "10px 12px",
+                marginBottom: 8,
+                cursor: "pointer",
               }}
             >
-              {name}
-            </button>
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="radio"
+                  name="portfolioFilter"
+                  style={{ width: "auto", margin: 0 }}
+                  checked={selectedFilter === name}
+                  onChange={() => setSelectedFilter(name)}
+                />
+                <strong>{name}</strong>
+              </span>
+              <span className="accent" style={{ fontWeight: 700 }}>
+                {countFor(name)}
+              </span>
+            </label>
           ))}
         </div>
 
