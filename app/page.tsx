@@ -76,6 +76,7 @@ export default function BookPage() {
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [myPlan, setMyPlan] = useState<MyRecurringPlan | null>(null);
+  const [reviewStats, setReviewStats] = useState<{ average: number; count: number } | null>(null);
   const [mowingFrequency, setMowingFrequency] = useState("");
   const [binFrequency, setBinFrequency] = useState("");
 
@@ -109,6 +110,12 @@ export default function BookPage() {
     fetch("/api/bookings/availability")
       .then((r) => r.json())
       .then((data) => setAvailability(data.days ?? []));
+
+    fetch("/api/reviews")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.count > 0) setReviewStats({ average: data.average, count: data.count });
+      });
 
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -509,6 +516,27 @@ export default function BookPage() {
           Your lawn, <span className="accent">handled.</span>
         </h1>
         <p style={{ color: "var(--text-muted)", marginTop: -4 }}>{t("tagline")}</p>
+
+        {reviewStats && (
+          <a
+            href="/reviews"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 8,
+              color: "var(--text-muted)",
+              textDecoration: "none",
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: "var(--gold)", letterSpacing: 1 }}>{"★".repeat(Math.round(reviewStats.average))}</span>
+            <span>
+              {reviewStats.average.toFixed(1)} ({reviewStats.count})
+            </span>
+          </a>
+        )}
+
         <h2 style={{ marginTop: 24, fontSize: 18 }}>{t("bookHeading")}</h2>
 
         {myPlan && (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, isWorkerRequest } from "@/lib/auth";
+import { sendReviewRequestEmail } from "@/lib/email";
 import { z } from "zod";
 
 // Marking a job "completed" and recording what was actually collected are both
@@ -49,5 +50,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const booking = await prisma.booking.update({ where: { id: params.id }, data });
+
+  if (status === "completed") {
+    // Fire-and-forget: a failed review-request email shouldn't block the
+    // job from being marked done.
+    prisma.customer.findUnique({ where: { id: booking.customerId } }).then((customer) => {
+      if (!customer) return;
+      return sendReviewRequestEmail({
+        customerName: customer.name,
+        customerEmail: customer.email,
+        services: booking.services,
+      });
+    }).catch((err) => console.error("Failed to send review request email:", err));
+  }
+
   return NextResponse.json(booking);
 }

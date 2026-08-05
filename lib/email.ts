@@ -76,6 +76,33 @@ export async function sendRecurringBookingNotification(booking: RecurringBooking
   });
 }
 
+type ReviewRequestInput = {
+  customerName: string;
+  customerEmail: string;
+  services: string[];
+};
+
+// Sent once a booking is marked "completed" — this is what actually drives
+// customers to /reviews. A page nobody's pointed at just sits empty; asking
+// right after a good job is when people are most likely to say yes.
+export async function sendReviewRequestEmail(input: ReviewRequestInput) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  if (!apiKey || !fromEmail) return;
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://verdantlawn.care";
+  const logo = `<img src="${appUrl}/logo.svg" width="48" height="48" alt="Verdant Lawn Care" style="display:block;margin-bottom:16px;border-radius:10px" />`;
+  const reviewUrl = `${appUrl}/reviews`;
+
+  await sgMail.send({
+    to: input.customerEmail,
+    from: { email: fromEmail, name: "Verdant Lawn Care" },
+    subject: "How did we do?",
+    text: `Hi ${input.customerName},\n\nWe just finished your ${input.services.join(", ")} service — thanks for choosing Verdant Lawn Care!\n\nIf you have a minute, we'd really appreciate a quick review: ${reviewUrl}\n\nThanks again!`,
+    html: `${logo}<p>Hi ${input.customerName},</p><p>We just finished your <strong>${input.services.join(", ")}</strong> service — thanks for choosing Verdant Lawn Care!</p><p>If you have a minute, we'd really appreciate a quick review:</p><p><a href="${reviewUrl}" style="display:inline-block;padding:10px 20px;background:#34d67f;color:#06130c;text-decoration:none;border-radius:6px;font-weight:700;">Leave a review</a></p><p>Thanks again!</p>`,
+  });
+}
+
 type NewBookingAlertInput = {
   staffEmails: string[];
   customerName: string;
