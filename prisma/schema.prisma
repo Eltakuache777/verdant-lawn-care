@@ -147,6 +147,7 @@ model QuoteRequest {
   photoUrls     String[] @default([]) // reference photos/videos of the project idea
   description   String?
   conceptUrls   String[] @default([]) // AI-generated design concept image URLs
+  conceptVideoUrls String[] @default([]) // AI-generated video clips (Veo) for the first few concepts
   chosenConcept String?
   status        String   @default("awaiting_payment") // awaiting_payment | paid | generating | generated | quoted | closed
   stripeSessionId String?
