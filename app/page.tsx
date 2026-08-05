@@ -922,6 +922,30 @@ export default function BookPage() {
         </form>
         {status && <p>{status}</p>}
       </div>
+
+      <section
+        aria-labelledby="seo-services-heading"
+        style={{ maxWidth: 720, margin: "48px auto 0", padding: "0 20px 40px", color: "var(--text-muted)" }}
+      >
+        <h2 id="seo-services-heading" style={{ fontSize: 18, color: "var(--text)" }}>
+          Lawn Care & Landscaping Services in Austin, TX
+        </h2>
+        <p style={{ fontSize: 14, lineHeight: 1.6 }}>
+          Verdant Lawn Care is a local lawn care and landscaping company serving Austin, TX and the
+          surrounding area. Whether you're searching for lawn mowing near me, an affordable landscaping
+          company, or a reliable crew for a one-time yard clean up, we book online in minutes with real,
+          upfront pricing — no phone calls and no hidden fees.
+        </p>
+        <p style={{ fontSize: 14, lineHeight: 1.6 }}>
+          Our services include <strong>lawn mowing</strong>, <strong>trash &amp; recycling bin cleaning</strong>,{" "}
+          <strong>bush trimming</strong>, <strong>tree trimming</strong>, <strong>fence building &amp; installation</strong>,{" "}
+          <strong>pressure washing</strong> for driveways and siding, custom{" "}
+          <strong>landscaping projects</strong>, seasonal <strong>lawn clean up</strong>, and{" "}
+          <strong>junk removal</strong>. If you've been searching for "lawn care near me" or "landscaping near
+          me" in Austin, TX, get an instant estimate above and have your yard handled by a trusted local
+          crew.
+        </p>
+      </section>
     </main>
   );
 }

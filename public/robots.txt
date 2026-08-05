@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /worker
+Disallow: /account
+Disallow: /api/
+
+Sitemap: https://verdantlawn.care/sitemap.xml
