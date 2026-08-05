@@ -53,7 +53,11 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
         ],
       },
     ],
-    generationConfig: { responseModalities: ["IMAGE"] },
+    // The API can silently return finishReason "NO_IMAGE" with empty content
+    // when only IMAGE modality is requested — including TEXT lets the model
+    // explain itself (and sometimes is required for it to return an image at
+    // all) instead of refusing with no explanation.
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
   };
 
   const res = await callGemini(apiKey, body);
@@ -64,11 +68,16 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
   }
 
   const data = await res.json();
-  const parts: any[] = data.candidates?.[0]?.content?.parts ?? [];
+  const candidate = data.candidates?.[0];
+  const parts: any[] = candidate?.content?.parts ?? [];
   const imagePart = parts.find((p) => p.inlineData || p.inline_data);
   const inline = imagePart?.inlineData || imagePart?.inline_data;
   if (!inline?.data) {
-    throw new Error(`Gemini did not return an image: ${JSON.stringify(data).slice(0, 500)}`);
+    const explanation = parts.find((p) => p.text)?.text;
+    const reason = candidate?.finishReason ?? data.promptFeedback?.blockReason;
+    throw new Error(
+      `Gemini did not return an image (${reason ?? "unknown reason"}): ${explanation ?? JSON.stringify(data).slice(0, 500)}`
+    );
   }
 
   return Buffer.from(inline.data, "base64");
