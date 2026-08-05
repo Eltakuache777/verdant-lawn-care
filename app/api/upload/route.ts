@@ -13,7 +13,14 @@ import { heicBufferToJpeg } from "@/lib/imageProcessing";
 // if photos need to survive long-term, swap this for real cloud storage.
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25MB
-const MAX_VIDEO_BYTES = 300 * 1024 * 1024; // 300MB — enough for a 3-4 minute phone video
+// The Render instance this runs on has 512MB total RAM, and each file gets
+// fully buffered in memory (Buffer.from(await file.arrayBuffer())) before
+// it's written to disk — a 300MB video buffer plus Next.js's own baseline
+// memory use blew past that and got OOM-killed by the OS (crash loop, no
+// error logged, since a SIGKILL gives the process no chance to log anything).
+// 75MB comfortably covers a 20-30 second phone clip while leaving real
+// headroom. Raise this only alongside a real RAM increase on the hosting plan.
+const MAX_VIDEO_BYTES = 75 * 1024 * 1024; // 75MB
 const MAX_FILES = 15;
 
 // Broad, permissive checks instead of an exact mime-type whitelist — phones report a
