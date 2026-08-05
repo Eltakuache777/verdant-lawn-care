@@ -16,6 +16,15 @@ type MyBooking = {
   amountPaid: number | null;
   assignedWorkerName: string | null;
 };
+type MyDesign = {
+  id: string;
+  tier: string;
+  conceptCount: number;
+  conceptUrls: string[];
+  conceptVideoUrls: string[];
+  description: string | null;
+  createdAt: string;
+};
 
 const FREQUENCY_KEYS: Record<string, DictKey> = {
   weekly: "freqWeekly",
@@ -48,6 +57,8 @@ export default function AccountPage() {
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string>(() => toDateKey(new Date()));
 
+  const [designs, setDesigns] = useState<MyDesign[]>([]);
+
   useEffect(() => {
     fetch("/api/my/recurring-plan")
       .then((r) => r.json())
@@ -73,6 +84,10 @@ export default function AccountPage() {
     fetch("/api/my/bookings")
       .then((r) => r.json())
       .then((data) => Array.isArray(data) && setBookings(data));
+
+    fetch("/api/my/designs")
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setDesigns(data));
   }, []);
 
   async function savePreferences(e: React.FormEvent) {
@@ -308,6 +323,49 @@ export default function AccountPage() {
                 </div>
               ))}
             </div>
+          </>
+        )}
+
+        {!loading && (
+          <>
+            <h3 style={{ marginTop: 24 }}>{t("myDesignsHeading")}</h3>
+            {designs.length === 0 && (
+              <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("noDesignsYet")}</p>
+            )}
+            {designs.map((d) => (
+              <a
+                key={d.id}
+                href={`/design/success?qr=${d.id}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 8,
+                  textDecoration: "none",
+                  color: "var(--text)",
+                }}
+              >
+                {d.conceptUrls[0] && (
+                  <img
+                    src={d.conceptUrls[0]}
+                    alt=""
+                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                  />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+                    {new Date(d.createdAt).toLocaleDateString(dateLocale, { month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                    {d.conceptUrls.length} {t("designConceptsReady")}
+                    {d.conceptVideoUrls.length > 0 ? ` · ${d.conceptVideoUrls.length} ${t("designVideosReady")}` : ""}
+                  </p>
+                </div>
+              </a>
+            ))}
           </>
         )}
       </div>
