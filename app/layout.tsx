@@ -8,6 +8,8 @@ import { LanguageProvider } from "./components/LanguageProvider";
 import { ChatProvider } from "./components/ChatContext";
 import { AssistantProvider } from "./components/AssistantContext";
 import { FeedbackProvider } from "./components/FeedbackContext";
+import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 
 const SITE_URL = "https://verdantlawn.care";
 
@@ -52,29 +54,53 @@ export const metadata = {
   alternates: { canonical: SITE_URL },
 };
 
-const structuredData = {
-  "@context": "https://schema.org",
-  "@type": "LandscapingBusiness",
-  name: "Verdant Lawn Care",
-  url: SITE_URL,
-  description:
-    "Lawn mowing, landscaping, tree trimming, bush trimming, fence building, pressure washing, bin cleaning, lawn clean up, and junk removal serving Austin, TX and surrounding areas.",
-  areaServed: { "@type": "City", name: "Austin", "@id": "https://en.wikipedia.org/wiki/Austin,_Texas" },
-  address: { "@type": "PostalAddress", addressLocality: "Austin", addressRegion: "TX", addressCountry: "US" },
-  makesOffer: [
-    "Mowing",
-    "Bin Cleaning",
-    "Bush Trimming",
-    "Tree Trimming",
-    "Fence Building",
-    "Pressure Washing",
-    "Lawn Clean Up",
-    "Junk Removal",
-    "Landscaping Project",
-  ].map((name) => ({ "@type": "Offer", itemOffered: { "@type": "Service", name } })),
-};
+// Reviews are real customer submissions (see /reviews and the Review model) —
+// aggregateRating is only added when there's at least one, since Google's
+// structured-data guidelines treat a fabricated/placeholder rating as spam
+// and it can get the whole site penalized rather than helped. Cached for an
+// hour (rather than a live DB query on every single page load across the
+// whole site) since this doesn't need to be second-by-second fresh.
+const getAggregateRating = unstable_cache(
+  async () => {
+    try {
+      const reviews = await prisma.review.findMany({ select: { rating: true } });
+      if (reviews.length === 0) return null;
+      const average = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+      return { "@type": "AggregateRating", ratingValue: average.toFixed(1), reviewCount: reviews.length };
+    } catch {
+      return null;
+    }
+  },
+  ["aggregate-rating"],
+  { revalidate: 3600 }
+);
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const aggregateRating = await getAggregateRating();
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "LandscapingBusiness",
+    name: "Verdant Lawn Care",
+    url: SITE_URL,
+    description:
+      "Lawn mowing, landscaping, tree trimming, bush trimming, fence building, pressure washing, bin cleaning, lawn clean up, and junk removal serving Austin, TX and surrounding areas.",
+    areaServed: { "@type": "City", name: "Austin", "@id": "https://en.wikipedia.org/wiki/Austin,_Texas" },
+    address: { "@type": "PostalAddress", addressLocality: "Austin", addressRegion: "TX", addressCountry: "US" },
+    ...(aggregateRating ? { aggregateRating } : {}),
+    makesOffer: [
+      "Mowing",
+      "Bin Cleaning",
+      "Bush Trimming",
+      "Tree Trimming",
+      "Fence Building",
+      "Pressure Washing",
+      "Lawn Clean Up",
+      "Junk Removal",
+      "Landscaping Project",
+    ].map((name) => ({ "@type": "Offer", itemOffered: { "@type": "Service", name } })),
+  };
+
   return (
     <html lang="en">
       <body>

@@ -141,6 +141,9 @@ export default function NavBar() {
       <a href="/portfolio" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navPortfolio")}
       </a>
+      <a href="/reviews" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+        {t("navReviews")}
+      </a>
       {showCustomerWidgets && (
         <button
           type="button"
