@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isAdminRequest } from "@/lib/auth";
 import { z } from "zod";
 
 // Staff-only (see middleware.ts). Powers the customer detail panel in admin.
@@ -44,6 +45,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   });
   return NextResponse.json(plan);
+}
+
+const BlockSchema = z.object({ blocked: z.boolean() });
+
+// Block/unblock a customer from logging in, booking, or messaging — admin
+// only (see isAdminRequest), same tier of action as deleting a portfolio
+// item or a review, checked here since middleware.ts only enforces "staff"
+// (admin or worker) for /api/customers/:id as a whole.
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  if (!(await isAdminRequest(req))) {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  }
+  const parsed = BlockSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+  const customer = await prisma.customer.update({
+    where: { id: params.id },
+    data: { blocked: parsed.data.blocked },
+  });
+  return NextResponse.json(customer);
 }
 
 // Cancel (deactivate) a customer's recurring plan.

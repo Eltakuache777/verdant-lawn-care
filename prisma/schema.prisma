@@ -55,6 +55,7 @@ model Customer {
   // account page, prefilled into future bookings. weekly | biweekly | monthly | bimonthly
   mowingFrequency      String?
   binCleaningFrequency String?
+  blocked       Boolean   @default(false) // admin can block a customer from logging in, booking, or messaging
   reviews       Review[]
 }
 

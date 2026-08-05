@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyLoginCode, roleForEmail } from "@/lib/loginCode";
 import { hashPassword } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
 import { z } from "zod";
 
 const BodySchema = z.object({
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest) {
   }
 
   const role = await roleForEmail(email);
+  if (role === "customer" && (await isCustomerBlocked(email))) {
+    return NextResponse.json({ error: BLOCKED_CUSTOMER_MESSAGE }, { status: 403 });
+  }
   let name: string | undefined;
   const passwordHash = parsed.data.password ? await hashPassword(parsed.data.password) : undefined;
 

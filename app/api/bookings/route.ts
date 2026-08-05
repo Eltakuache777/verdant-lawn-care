@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendBookingConfirmation, sendNewBookingAlert } from "@/lib/email";
 import { sendPushToEmails } from "@/lib/push";
 import { SERVICE_FREQUENCY_VALUES } from "@/lib/recurringFrequency";
+import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
 import { z } from "zod";
 
 const EMERGENCY_FEE = 15; // adjust to $10-$20 as you decide
@@ -28,6 +29,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
+
+  if (await isCustomerBlocked(data.customerEmail)) {
+    return NextResponse.json({ error: BLOCKED_CUSTOMER_MESSAGE }, { status: 403 });
+  }
 
   const services = await prisma.service.findMany({ where: { name: { in: data.services } } });
   const foundNames = new Set(services.map((s) => s.name));

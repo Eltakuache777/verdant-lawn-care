@@ -5,7 +5,7 @@ export const RECURRING_FREQUENCIES: { value: RecurringFrequency; days: number; l
   { value: "biweekly", days: 14, label: "Every 2 weeks" },
   { value: "every_3_weeks", days: 21, label: "Every 3 weeks" },
   { value: "monthly", days: 30, label: "Monthly" },
-  { value: "bimonthly", days: 60, label: "Every 2 months" },
+  { value: "bimonthly", days: 60, label: "Bi-monthly" },
 ];
 
 // The subset customers pick from for Mowing/Bin Cleaning cadence — skips

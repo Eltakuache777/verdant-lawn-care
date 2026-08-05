@@ -64,6 +64,7 @@ type CustomerRow = {
   bookingCount: number;
   totalPaid: number;
   recurringPlan: RecurringPlan | null;
+  blocked: boolean;
 };
 type CustomerDetail = CustomerRow & {
   bookings: {
@@ -145,6 +146,7 @@ export default function AdminShell({
   const [customersError, setCustomersError] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
+  const [blockSaving, setBlockSaving] = useState(false);
   const [planServices, setPlanServices] = useState("Mowing");
   const [planAddress, setPlanAddress] = useState("");
   const [planFrequency, setPlanFrequency] = useState("biweekly");
@@ -339,6 +341,28 @@ export default function AdminShell({
         setPlanPrice(plan ? String(plan.pricePerVisit) : "");
         setPlanNextDate(plan ? plan.nextDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
       });
+  }
+
+  async function toggleBlockCustomer() {
+    if (!selectedCustomerId || !customerDetail) return;
+    const nextBlocked = !customerDetail.blocked;
+    if (nextBlocked && !confirm(`Block ${customerDetail.name}? They won't be able to log in, book, or message us.`)) {
+      return;
+    }
+    setBlockSaving(true);
+    try {
+      const res = await fetch(`/api/customers/${selectedCustomerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocked: nextBlocked }),
+      });
+      if (res.ok) {
+        setCustomerDetail((prev) => (prev ? { ...prev, blocked: nextBlocked } : prev));
+        setCustomers((prev) => prev.map((c) => (c.id === selectedCustomerId ? { ...c, blocked: nextBlocked } : c)));
+      }
+    } finally {
+      setBlockSaving(false);
+    }
   }
 
   async function saveRecurringPlan(e: React.FormEvent) {
@@ -1712,7 +1736,23 @@ export default function AdminShell({
                     cursor: "pointer",
                   }}
                 >
-                  <p style={{ margin: 0, fontWeight: 700 }}>{c.name}</p>
+                  <p style={{ margin: 0, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                    {c.name}
+                    {c.blocked && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: "#ff6b6b",
+                          border: "1px solid #ff6b6b",
+                          borderRadius: 4,
+                          padding: "1px 5px",
+                        }}
+                      >
+                        BLOCKED
+                      </span>
+                    )}
+                  </p>
                   <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
                     {c.email}
                     {c.phone ? ` — ${c.phone}` : ""}
@@ -1732,11 +1772,50 @@ export default function AdminShell({
                 <p style={{ color: "var(--text-muted)" }}>Select a customer to view details.</p>
               ) : (
                 <>
-                  <h3 style={{ marginTop: 0 }}>{customerDetail.name}</h3>
+                  <h3 style={{ marginTop: 0 }}>
+                    {customerDetail.name}
+                    {customerDetail.blocked && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#ff6b6b",
+                          border: "1px solid #ff6b6b",
+                          borderRadius: 4,
+                          padding: "2px 6px",
+                          verticalAlign: "middle",
+                        }}
+                      >
+                        BLOCKED
+                      </span>
+                    )}
+                  </h3>
                   <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: -8 }}>
                     {customerDetail.email}
                     {customerDetail.phone ? ` — ${customerDetail.phone}` : ""}
                   </p>
+
+                  {role === "admin" && (
+                    <button
+                      type="button"
+                      onClick={toggleBlockCustomer}
+                      disabled={blockSaving}
+                      style={{
+                        background: customerDetail.blocked ? "transparent" : "#ff6b6b",
+                        color: customerDetail.blocked ? "#ff6b6b" : "#1a0606",
+                        border: customerDetail.blocked ? "1px solid #ff6b6b" : "none",
+                        fontWeight: 700,
+                        marginBottom: 16,
+                      }}
+                    >
+                      {blockSaving
+                        ? "Saving..."
+                        : customerDetail.blocked
+                        ? "Unblock customer"
+                        : "Block customer from using the site"}
+                    </button>
+                  )}
 
                   <h4 style={{ marginBottom: 8 }}>Recurring lawn plan</h4>
                   <form onSubmit={saveRecurringPlan}>

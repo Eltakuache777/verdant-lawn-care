@@ -107,6 +107,9 @@ export default function ChatWidget() {
         setFiles([]);
         if (fileInputRef.current) fileInputRef.current.value = "";
         loadMessages();
+      } else {
+        const err = await res.json();
+        alert(err.error ?? t("couldNotSendMessage"));
       }
     } finally {
       setSending(false);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToEmails } from "@/lib/push";
+import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
 import { z } from "zod";
 
 // Public: a customer's own conversation, looked up by the email they provide.
@@ -29,6 +30,9 @@ export async function POST(req: NextRequest) {
   const parsed = MessageSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+  if (await isCustomerBlocked(parsed.data.customerEmail)) {
+    return NextResponse.json({ error: BLOCKED_CUSTOMER_MESSAGE }, { status: 403 });
   }
   const message = await prisma.chatMessage.create({
     data: {
