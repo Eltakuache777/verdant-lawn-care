@@ -8,6 +8,30 @@ import { resizeForApi } from "./imageProcessing";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
+// Gemini's image model returns 503 UNAVAILABLE during demand spikes fairly
+// routinely ("usually temporary" per their own error message) and 429 on
+// rate limits — retry a few times with backoff so one transient blip doesn't
+// abort an entire batch of concepts (especially the 15/50-concept tiers).
+const RETRYABLE_STATUS = new Set([429, 503]);
+const MAX_ATTEMPTS = 4;
+
+async function callGemini(apiKey: string, body: unknown): Promise<Response> {
+  let lastRes: Response | null = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok || !RETRYABLE_STATUS.has(res.status)) return res;
+    lastRes = res;
+    if (attempt < MAX_ATTEMPTS - 1) {
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+    }
+  }
+  return lastRes!;
+}
+
 export async function generateDesignConcept(inputImage: Buffer, prompt: string): Promise<Buffer> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -32,11 +56,7 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
     generationConfig: { responseModalities: ["IMAGE"] },
   };
 
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await callGemini(apiKey, body);
 
   if (!res.ok) {
     const text = await res.text();
