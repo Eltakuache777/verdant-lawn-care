@@ -76,6 +76,40 @@ export async function sendRecurringBookingNotification(booking: RecurringBooking
   });
 }
 
+type AppointmentReminderInput = {
+  customerName: string;
+  customerEmail: string;
+  services: string[];
+  address: string;
+  scheduledFor: Date;
+};
+
+export async function sendAppointmentReminder(booking: AppointmentReminderInput) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  if (!apiKey || !fromEmail) return;
+
+  const when = booking.scheduledFor.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://verdantlawn.care";
+  const logo = `<img src="${appUrl}/logo.svg" width="48" height="48" alt="Verdant Lawn Care" style="display:block;margin-bottom:16px;border-radius:10px" />`;
+
+  await sgMail.send({
+    to: booking.customerEmail,
+    from: { email: fromEmail, name: "Verdant Lawn Care" },
+    subject: "Reminder: your Verdant Lawn Care appointment is tomorrow",
+    text: `Hi ${booking.customerName},\n\nJust a reminder — your appointment is coming up tomorrow:\n\nServices: ${booking.services.join(", ")}\nWhen: ${when}\nAddress: ${booking.address}\n\nSee you then!`,
+    html: `${logo}<p>Hi ${booking.customerName},</p><p>Just a reminder — your appointment is coming up tomorrow:</p><ul><li><strong>Services:</strong> ${booking.services.join(", ")}</li><li><strong>When:</strong> ${when}</li><li><strong>Address:</strong> ${booking.address}</li></ul><p>See you then!</p>`,
+  });
+}
+
 type ReviewRequestInput = {
   customerName: string;
   customerEmail: string;

@@ -114,6 +114,7 @@ model Booking {
   assignedWorkerName  String?
   mowingFrequency      String? // customer's chosen cadence for Mowing on this booking, if selected
   binCleaningFrequency String? // customer's chosen cadence for Bin Cleaning on this booking, if selected
+  reminderSentAt DateTime? // set once the 24-hours-before reminder email has gone out, so the background job never sends it twice
   createdAt     DateTime @default(now())
 }
 
