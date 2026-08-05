@@ -48,7 +48,8 @@ export async function middleware(req: NextRequest) {
     (path.startsWith("/api/bookings/") && m === "PATCH") ||
     (path.startsWith("/api/chat/") && m === "DELETE") ||
     (path === "/api/portfolio" && m === "POST") ||
-    (path.startsWith("/api/portfolio/") && m === "DELETE");
+    (path.startsWith("/api/portfolio/") && m === "DELETE") ||
+    (path.startsWith("/api/reviews/") && m === "DELETE");
 
   if (isStaffOnly) {
     const role = await roleOf(req);
@@ -92,5 +93,6 @@ export const config = {
     "/api/staff-chat/threads/:id/messages/:messageId",
     "/api/portfolio",
     "/api/portfolio/:id",
+    "/api/reviews/:id",
   ],
 };

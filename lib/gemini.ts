@@ -5,6 +5,8 @@
 // see conversation history — this produces far more coherent, photorealistic
 // edits than Stability's sd3 model did.
 import { resizeForApi } from "./imageProcessing";
+import { createReadStream } from "fs";
+import { stat } from "fs/promises";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_URL = `${GEMINI_BASE}/models/gemini-3.1-flash-image:generateContent`;
@@ -144,14 +146,24 @@ async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
   return resolved;
 }
 
-async function uploadFileToGemini(apiKey: string, buffer: Buffer, mimeType: string): Promise<{ uri: string; mimeType: string }> {
+// Reads the video off disk as a stream rather than a full Buffer — the
+// Render instance this runs on has 512MB total RAM (same constraint that
+// caused a real OOM crash loop earlier over a fully-buffered video upload),
+// and this function can be handling a video up to MAX_VIDEO_BYTES (75MB)
+// on top of everything else already in flight for the same request. Node's
+// fetch accepts a Readable directly as the body (with duplex: "half") so
+// the bytes stream straight through without ever holding the whole file in
+// memory at once.
+async function uploadFileToGemini(apiKey: string, filePath: string, mimeType: string): Promise<{ uri: string; mimeType: string }> {
+  const { size } = await stat(filePath);
+
   const startRes = await fetch(GEMINI_FILES_UPLOAD_URL, {
     method: "POST",
     headers: {
       "x-goog-api-key": apiKey,
       "X-Goog-Upload-Protocol": "resumable",
       "X-Goog-Upload-Command": "start",
-      "X-Goog-Upload-Header-Content-Length": String(buffer.length),
+      "X-Goog-Upload-Header-Content-Length": String(size),
       "X-Goog-Upload-Header-Content-Type": mimeType,
       "Content-Type": "application/json",
     },
@@ -168,12 +180,13 @@ async function uploadFileToGemini(apiKey: string, buffer: Buffer, mimeType: stri
   const uploadRes = await fetch(uploadUrl, {
     method: "POST",
     headers: {
-      "Content-Length": String(buffer.length),
+      "Content-Length": String(size),
       "X-Goog-Upload-Offset": "0",
       "X-Goog-Upload-Command": "upload, finalize",
     },
-    body: buffer,
-  });
+    body: createReadStream(filePath),
+    duplex: "half",
+  } as unknown as RequestInit);
   if (!uploadRes.ok) {
     throw new Error(`Gemini file upload failed ${uploadRes.status}: ${await uploadRes.text()}`);
   }
@@ -198,13 +211,13 @@ async function uploadFileToGemini(apiKey: string, buffer: Buffer, mimeType: stri
   return { uri: file.uri, mimeType: file.mimeType ?? mimeType };
 }
 
-export async function describeYardVideo(videoBuffer: Buffer, mimeType: string): Promise<string> {
+export async function describeYardVideo(videoPath: string, mimeType: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY isn't configured");
   }
 
-  const uploaded = await uploadFileToGemini(apiKey, videoBuffer, mimeType);
+  const uploaded = await uploadFileToGemini(apiKey, videoPath, mimeType);
   const model = await resolveVideoDescribeModel(apiKey);
 
   const body = {

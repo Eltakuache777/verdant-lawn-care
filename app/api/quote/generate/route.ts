@@ -83,8 +83,7 @@ export async function POST(req: NextRequest) {
       for (const videoUrl of videoUrls) {
         try {
           const videoPath = path.join(uploadDir, path.basename(videoUrl));
-          const videoBuffer = await readFile(videoPath);
-          const videoDescription = await describeYardVideo(videoBuffer, videoMimeType(videoUrl));
+          const videoDescription = await describeYardVideo(videoPath, videoMimeType(videoUrl));
           videoDescriptions.push(videoDescription);
         } catch (videoDescErr) {
           console.error(`Video description failed for ${videoUrl}:`, videoDescErr);

@@ -55,6 +55,24 @@ model Customer {
   // account page, prefilled into future bookings. weekly | biweekly | monthly | bimonthly
   mowingFrequency      String?
   binCleaningFrequency String?
+  reviews       Review[]
+}
+
+// A public star rating + comment from a customer, shown on the /reviews
+// page and folded into AggregateRating structured data for SEO (Google can
+// show star ratings right in search results once there's real review
+// history). Must be logged in as a customer to leave one, but every review
+// goes live immediately — admin can delete anything inappropriate after the
+// fact, same moderation pattern as portfolio items and chat messages.
+model Review {
+  id           String   @id @default(cuid())
+  customer     Customer @relation(fields: [customerId], references: [id])
+  customerId   String
+  customerName String
+  rating       Int // 1-5
+  comment      String
+  service      String? // optional: which service this review is about
+  createdAt    DateTime @default(now())
 }
 
 // An ongoing lawn-care arrangement the owner sets up for a specific customer —
