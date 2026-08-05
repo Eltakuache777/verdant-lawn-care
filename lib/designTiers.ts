@@ -47,9 +47,28 @@ export type DesignTierKey = keyof typeof DESIGN_TIERS;
 // Only photos can seed image generation, not videos someone attached for
 // context — used both to filter which uploaded files count toward the
 // per-photo concept multiplier and to pick real reference images at
-// generation time.
+// generation time. A video someone attaches is still put to use (see
+// lib/gemini.ts's describeYardVideo), just not as the literal edited image.
 export function isImageUrl(url: string) {
   return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(url);
+}
+
+const VIDEO_MIME_BY_EXT: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".3gp": "video/3gpp",
+  ".mkv": "video/x-matroska",
+};
+
+export function isVideoUrl(url: string) {
+  return /\.(mp4|m4v|mov|webm|3gp|mkv)$/i.test(url);
+}
+
+export function videoMimeType(url: string): string {
+  const match = url.toLowerCase().match(/\.[a-z0-9]+$/);
+  return (match && VIDEO_MIME_BY_EXT[match[0]]) ?? "video/mp4";
 }
 
 // Total concepts for an order = tier's per-photo count × however many real

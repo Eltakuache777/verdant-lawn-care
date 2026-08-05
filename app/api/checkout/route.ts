@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { DESIGN_TIERS, DesignTierKey, computeConceptCount } from "@/lib/designTiers";
+import { DESIGN_TIERS, DesignTierKey, computeConceptCount, isImageUrl } from "@/lib/designTiers";
 import { prisma } from "@/lib/prisma";
 
 // TEMPORARY: AI Design is paused for the public while results quality is
@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
 
   if (!(tier in DESIGN_TIERS)) {
     return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
+  }
+  if (!(photoUrls ?? []).some(isImageUrl)) {
+    return NextResponse.json(
+      { error: "At least one photo is required — a video alone isn't enough to generate a design from." },
+      { status: 400 }
+    );
   }
   const chosen = DESIGN_TIERS[tier as DesignTierKey];
   const conceptCount = computeConceptCount(tier as DesignTierKey, photoUrls ?? []);

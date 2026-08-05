@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDesignConcept } from "@/lib/gemini";
+import { generateDesignConcept, describeYardVideo } from "@/lib/gemini";
 import { generateDesignVideo } from "@/lib/veo";
-import { DESIGN_TIERS, DesignTierKey, isImageUrl } from "@/lib/designTiers";
+import { DESIGN_TIERS, DesignTierKey, isImageUrl, isVideoUrl, videoMimeType } from "@/lib/designTiers";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -53,16 +53,48 @@ export async function POST(req: NextRequest) {
     // link (see that route for why) — the actual file always lives in
     // public/uploads regardless of URL prefix, so read it by filename.
     //
-    // Only photos seed image generation (not videos someone attached for
-    // context) — EVERY uploaded photo gets its own full set of
-    // conceptsPerPhoto designs generated from it specifically, not spread/
-    // cycled across photos.
+    // Only photos seed image generation — EVERY uploaded photo gets its own
+    // full set of conceptsPerPhoto designs generated from it specifically,
+    // not spread/cycled across photos. A video alone can't seed a design
+    // (the image editor needs a still photo to edit), so require at least
+    // one real photo rather than silently feeding it raw video bytes.
     const referencePhotoUrls = quote.photoUrls.filter(isImageUrl);
-    const photosToUse = referencePhotoUrls.length > 0 ? referencePhotoUrls : quote.photoUrls;
+    if (referencePhotoUrls.length === 0) {
+      await prisma.quoteRequest.update({ where: { id: quoteRequestId }, data: { status: "paid" } });
+      return NextResponse.json(
+        { error: "At least one photo is required to generate a design — a video alone isn't enough." },
+        { status: 400 }
+      );
+    }
+    const photosToUse = referencePhotoUrls;
 
     const conceptUrls: string[] = [];
     const conceptVideoUrls: string[] = [];
-    const description = quote.description ?? "a beautifully landscaped yard";
+    let description = quote.description ?? "a beautifully landscaped yard";
+
+    // Any attached video isn't used to seed images directly, but it's still
+    // put to use: have Gemini "watch" it and describe the yard, then fold
+    // that into the prompt so the design generator understands the space
+    // better. A failed description shouldn't sink the whole order — same
+    // treatment as a failed video clip below.
+    const videoUrls = quote.photoUrls.filter(isVideoUrl);
+    if (videoUrls.length > 0) {
+      const videoDescriptions: string[] = [];
+      for (const videoUrl of videoUrls) {
+        try {
+          const videoPath = path.join(uploadDir, path.basename(videoUrl));
+          const videoBuffer = await readFile(videoPath);
+          const videoDescription = await describeYardVideo(videoBuffer, videoMimeType(videoUrl));
+          videoDescriptions.push(videoDescription);
+        } catch (videoDescErr) {
+          console.error(`Video description failed for ${videoUrl}:`, videoDescErr);
+        }
+      }
+      if (videoDescriptions.length > 0) {
+        description = `${description}\n\nAdditional context from a video walkthrough of the yard: ${videoDescriptions.join(" ")}`;
+      }
+    }
+
     let conceptIndex = 0;
 
     for (const referenceUrl of photosToUse) {
