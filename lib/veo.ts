@@ -6,6 +6,19 @@
 // single generation's 8-second cap was verified end-to-end too (8s clip ->
 // one extension call -> confirmed 15s output via ffprobe).
 //
+// The image field's shape ({bytesBase64Encoded, mimeType}, flat -- NOT
+// nested under inlineData) is the Vertex AI convention, which is unusual
+// since this app otherwise calls the Gemini Developer API everywhere else
+// -- but it's what this specific model actually accepts. Confirmed by
+// directly curling generativelanguage.googleapis.com with real API calls
+// (not docs, which disagreed and sent me down the wrong path once): a
+// switch to {inlineData: {mimeType, data}} gets rejected outright with
+// "`inlineData` isn't supported by this model", while this flat shape
+// completes successfully end-to-end -- retested with a throwaway 1x1 image,
+// a realistic ~1MB RGB photo, and an RGBA (alpha channel) photo, all three
+// polled to a real downloadable video.uri. Don't "fix" this again without
+// re-verifying against the live API first.
+//
 // Video generation is async: submit a job (predictLongRunning), poll the
 // returned operation until done. A single generation maxes out around 8
 // seconds; going longer means feeding the previous result's video object
@@ -71,7 +84,7 @@ export async function generateDesignVideo(
 
   let video = await submitAndPoll(apiKey, {
     prompt: `Slow cinematic pan across this landscaped yard: ${prompt}. Smooth camera movement, photorealistic, no people.`,
-    image: { inlineData: { mimeType: "image/png", data: conceptImage.toString("base64") } },
+    image: { bytesBase64Encoded: conceptImage.toString("base64"), mimeType: "image/png" },
   });
 
   let currentDuration = INITIAL_CLIP_SECONDS;
