@@ -151,7 +151,23 @@ model QuoteRequest {
   chosenConcept String?
   status        String   @default("awaiting_payment") // awaiting_payment | paid | generating | generated | quoted | closed
   stripeSessionId String?
+  createdByStaffEmail String? // set when generated via the free admin/worker tool — whoever was logged in and submitted it
   createdAt     DateTime @default(now())
+}
+
+// A single photo or video someone chose to keep from an AI Design batch,
+// rather than the whole 5/15/50-concept dump — shown as "Saved Designs" on
+// the customer account page and in each staff member's own Design tab.
+// ownerEmail works for either a customer or a staff member (same session
+// concept, just a different role) since it's just whoever is logged in.
+model SavedDesignItem {
+  id             String   @id @default(cuid())
+  ownerEmail     String
+  quoteRequestId String
+  mediaUrl       String
+  createdAt      DateTime @default(now())
+
+  @@unique([ownerEmail, mediaUrl])
 }
 
 // Free-text "what would make this better" submissions from the feedback button —

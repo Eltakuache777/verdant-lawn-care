@@ -4,6 +4,7 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import { RECURRING_FREQUENCIES, SERVICE_FREQUENCY_VALUES } from "@/lib/recurringFrequency";
 import { toDateKey, buildMonthGrid } from "@/lib/calendarGrid";
 import type { DictKey } from "@/lib/i18n";
+import MediaLightbox, { LightboxItem } from "@/app/components/MediaLightbox";
 
 type RecurringPlan = { services: string[]; frequency: string; pricePerVisit: number; nextDate: string; active: boolean };
 type MyBooking = {
@@ -25,6 +26,11 @@ type MyDesign = {
   description: string | null;
   createdAt: string;
 };
+type SavedItem = { id: string; mediaUrl: string; quoteRequestId: string; createdAt: string };
+
+function isVideoUrl(url: string) {
+  return /\.(mp4|mov|webm)$/i.test(url);
+}
 
 const FREQUENCY_KEYS: Record<string, DictKey> = {
   weekly: "freqWeekly",
@@ -58,6 +64,8 @@ export default function AccountPage() {
   const [selectedDay, setSelectedDay] = useState<string>(() => toDateKey(new Date()));
 
   const [designs, setDesigns] = useState<MyDesign[]>([]);
+  const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
+  const [savedLightboxIndex, setSavedLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/my/recurring-plan")
@@ -88,7 +96,20 @@ export default function AccountPage() {
     fetch("/api/my/designs")
       .then((r) => r.json())
       .then((data) => Array.isArray(data) && setDesigns(data));
+
+    fetch("/api/design/save")
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setSavedItems(data));
   }, []);
+
+  async function unsaveItem(mediaUrl: string) {
+    setSavedItems((prev) => prev.filter((i) => i.mediaUrl !== mediaUrl));
+    await fetch("/api/design/save", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaUrl }),
+    });
+  }
 
   async function savePreferences(e: React.FormEvent) {
     e.preventDefault();
@@ -368,7 +389,45 @@ export default function AccountPage() {
             ))}
           </>
         )}
+
+        {!loading && (
+          <>
+            <h3 style={{ marginTop: 24 }}>{t("savedDesignsHeading")}</h3>
+            {savedItems.length === 0 && (
+              <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("noSavedItemsYet")}</p>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+              {savedItems.map((item, i) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSavedLightboxIndex(i)}
+                  style={{ padding: 0, background: "transparent", position: "relative" }}
+                >
+                  {isVideoUrl(item.mediaUrl) ? (
+                    <video src={item.mediaUrl} muted style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)", pointerEvents: "none" }} />
+                  ) : (
+                    <img src={item.mediaUrl} alt="" style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)" }} />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
+
+      {savedLightboxIndex !== null && (
+        <MediaLightbox
+          items={savedItems.map((i): LightboxItem => ({ url: i.mediaUrl, isVideo: isVideoUrl(i.mediaUrl) }))}
+          startIndex={savedLightboxIndex}
+          onClose={() => setSavedLightboxIndex(null)}
+          renderExtra={(item) => (
+            <button type="button" onClick={() => unsaveItem(item.url)} style={{ padding: "8px 16px" }}>
+              ★ {t("unsaveBtn")}
+            </button>
+          )}
+        />
+      )}
     </main>
   );
 }

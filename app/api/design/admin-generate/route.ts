@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DESIGN_TIERS } from "@/lib/designTiers";
+import { staffSessionFrom } from "@/lib/auth";
 import { z } from "zod";
 
 // Admin-only (see middleware.ts): the owner's own use of the AI design feature
@@ -18,6 +19,9 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const session = await staffSessionFrom(req);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const parsed = BodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -40,6 +44,7 @@ export async function POST(req: NextRequest) {
       photoUrls,
       description,
       status: "paid",
+      createdByStaffEmail: session.email,
     },
   });
 

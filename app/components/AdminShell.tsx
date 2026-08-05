@@ -197,6 +197,9 @@ export default function AdminShell({
   const designFileInputRef = useRef<HTMLInputElement>(null);
   const designPhotoInputRef = useRef<HTMLInputElement>(null);
   const designVideoInputRef = useRef<HTMLInputElement>(null);
+  const [myDesignHistory, setMyDesignHistory] = useState<
+    { id: string; conceptUrls: string[]; conceptVideoUrls: string[]; createdAt: string; customer: { name: string; email: string } }[]
+  >([]);
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -283,6 +286,9 @@ export default function AdminShell({
     loadCustomers();
     loadTeamThreads();
     loadFeedback();
+    fetch("/api/design/history")
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setMyDesignHistory(data));
     // Catches up any recurring plans that came due since the app was last opened.
     fetch("/api/recurring/run-due", { method: "POST" })
       .then((r) => (r.ok ? r.json() : null))
@@ -1908,6 +1914,52 @@ export default function AdminShell({
                   {designSubmitting ? "Generating..." : "Generate free designs"}
                 </button>
               </form>
+            </div>
+
+            <div className="card" style={{ margin: "24px 0 0" }}>
+              <h1>My AI Designs</h1>
+              <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
+                Designs you've generated with the free tool — only visible to you, not other workers.
+              </p>
+              {myDesignHistory.length === 0 && (
+                <p style={{ color: "var(--text-muted)" }}>You haven't generated any free designs yet.</p>
+              )}
+              {myDesignHistory.map((d) => (
+                <a
+                  key={d.id}
+                  href={`/design/success?qr=${d.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    padding: 10,
+                    marginBottom: 8,
+                    textDecoration: "none",
+                    color: "var(--text)",
+                  }}
+                >
+                  {d.conceptUrls[0] && (
+                    <img
+                      src={d.conceptUrls[0]}
+                      alt=""
+                      style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                    />
+                  )}
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+                      {d.customer.name || d.customer.email}
+                    </p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                      {new Date(d.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                      {" — "}
+                      {d.conceptUrls.length} concepts
+                      {d.conceptVideoUrls.length > 0 ? ` · ${d.conceptVideoUrls.length} videos` : ""}
+                    </p>
+                  </div>
+                </a>
+              ))}
             </div>
           </div>
         )}
