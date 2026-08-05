@@ -71,7 +71,7 @@ export async function generateDesignVideo(
 
   let video = await submitAndPoll(apiKey, {
     prompt: `Slow cinematic pan across this landscaped yard: ${prompt}. Smooth camera movement, photorealistic, no people.`,
-    image: { bytesBase64Encoded: conceptImage.toString("base64"), mimeType: "image/png" },
+    image: { inlineData: { mimeType: "image/png", data: conceptImage.toString("base64") } },
   });
 
   let currentDuration = INITIAL_CLIP_SECONDS;

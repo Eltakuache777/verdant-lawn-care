@@ -105,22 +105,38 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
 const VIDEO_DESCRIBE_MODEL_FALLBACK = "gemini-3.1-flash";
 let cachedVideoDescribeModel: string | null = null;
 
-async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
-  if (cachedVideoDescribeModel) return cachedVideoDescribeModel;
-
-  const probeUrl = `${GEMINI_BASE}/models/${VIDEO_DESCRIBE_MODEL_FALLBACK}:generateContent`;
-  const probeRes = await fetch(probeUrl, {
+// A model existing in the list (and even claiming to support generateContent)
+// doesn't mean it'll actually work — Google keeps sunset models listed and
+// they 404 with "no longer available to new users" the moment you call them
+// (learned the hard way: the naive first-match fallback here once picked
+// gemini-2.5-flash, which did exactly that). So every candidate gets a real
+// probe call, tried newest-version-first, until one actually succeeds.
+async function probeModel(apiKey: string, model: string): Promise<boolean> {
+  const res = await fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {
     method: "POST",
     headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
   });
-  if (probeRes.status !== 404) {
+  return res.status !== 404;
+}
+
+function versionScore(name: string): number {
+  const match = name.match(/gemini-(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[1]) : 0;
+}
+
+async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
+  if (cachedVideoDescribeModel) return cachedVideoDescribeModel;
+
+  if (await probeModel(apiKey, VIDEO_DESCRIBE_MODEL_FALLBACK)) {
     cachedVideoDescribeModel = VIDEO_DESCRIBE_MODEL_FALLBACK;
     return cachedVideoDescribeModel;
   }
 
-  // The guessed model id doesn't exist on this API version — ask Google what
-  // does, same recovery used earlier for the Veo model id being wrong.
+  // The guessed model id doesn't exist (or isn't available) on this API
+  // version — ask Google what does, same recovery used earlier for the Veo
+  // model id being wrong, but this time actually verify each candidate
+  // rather than trusting the first name match.
   const listRes = await fetch(`${GEMINI_BASE}/models?pageSize=200`, {
     headers: { "x-goog-api-key": apiKey },
   });
@@ -128,22 +144,26 @@ async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
     throw new Error(`Could not resolve a Gemini video model and model listing failed ${listRes.status}`);
   }
   const listData = await listRes.json();
-  const candidates: any[] = listData.models ?? [];
-  const match = candidates.find(
-    (m) =>
-      typeof m.name === "string" &&
-      m.name.includes("flash") &&
-      !m.name.includes("image") &&
-      !m.name.includes("tts") &&
-      (m.supportedGenerationMethods ?? []).includes("generateContent")
-  );
-  if (!match) {
-    throw new Error("No suitable Gemini text/vision model found for video description");
+  const candidates: any[] = (listData.models ?? [])
+    .filter(
+      (m: any) =>
+        typeof m.name === "string" &&
+        m.name.includes("flash") &&
+        !m.name.includes("image") &&
+        !m.name.includes("tts") &&
+        (m.supportedGenerationMethods ?? []).includes("generateContent")
+    )
+    .map((m: any) => m.name.replace(/^models\//, ""))
+    .sort((a: string, b: string) => versionScore(b) - versionScore(a));
+
+  for (const candidate of candidates) {
+    if (await probeModel(apiKey, candidate)) {
+      cachedVideoDescribeModel = candidate;
+      console.log(`describeYardVideo: resolved video model to ${candidate}`);
+      return candidate;
+    }
   }
-  const resolved: string = match.name.replace(/^models\//, "");
-  cachedVideoDescribeModel = resolved;
-  console.log(`describeYardVideo: resolved video model to ${resolved}`);
-  return resolved;
+  throw new Error("No working Gemini text/vision model found for video description");
 }
 
 // Reads the video off disk as a stream rather than a full Buffer — the
