@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Pressure Washing Estimate — Austin, TX",
+  title: "Pressure Washing Estimate",
   description:
     "Get an instant pressure washing & power washing price estimate in Austin, TX. Driveways, siding, patios & more — book online in minutes.",
   alternates: { canonical: "https://verdantlawn.care/estimate/pressure" },

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Fence Building Estimate — Austin, TX",
+  title: "Fence Building Estimate",
   description:
     "Get an instant fence building & installation price estimate in Austin, TX. Quality fence work near you — book online in minutes, no phone calls needed.",
   alternates: { canonical: "https://verdantlawn.care/estimate/fence" },

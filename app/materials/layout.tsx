@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Materials & Landscaping Supplies — Austin, TX",
+  title: "Materials & Landscaping Supplies",
   description:
     "Browse mulch, gravel, sod, and landscaping materials available for your Austin, TX yard project. Bush trimming, tree trimming, and landscaping projects near you.",
   alternates: { canonical: "https://verdantlawn.care/materials" },
