@@ -47,7 +47,11 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
       {
         parts: [
           {
-            text: `Apply these exact changes to the yard in this photo: ${prompt}. Keep the same house, fence, structures, and camera angle — this is the same yard, just improved, not a different property. Photorealistic.`,
+            // Gemini understands Spanish natively, but customers may type
+            // their request in Spanish while everything else here is
+            // English — call that out explicitly rather than relying on it
+            // being implicit.
+            text: `Apply these exact changes to the yard in this photo: ${prompt}. (The request above may be written in English or Spanish — understand and apply it correctly either way.) Keep the same house, fence, structures, and camera angle — this is the same yard, just improved, not a different property. Photorealistic.`,
           },
           { inline_data: { mime_type: "image/png", data: resizedInput.toString("base64") } },
         ],

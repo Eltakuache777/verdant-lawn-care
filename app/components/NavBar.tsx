@@ -189,9 +189,10 @@ export default function NavBar() {
       <a href="/materials" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
         {t("navMaterials")}
       </a>
-      <a href="/design" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-        {t("navDesign")}
-      </a>
+      {/* TEMPORARY: AI Design nav link hidden from the public while paused
+          — matches PUBLIC_AI_DESIGN_ENABLED in app/design/page.tsx and
+          app/api/checkout/route.ts. Staff still reach their own free tool
+          via /admin, unaffected by this. */}
 
       {showCustomerWidgets && session?.loggedIn ? (
         <>

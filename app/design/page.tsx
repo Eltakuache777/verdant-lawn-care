@@ -5,15 +5,23 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import type { DictKey } from "@/lib/i18n";
 import FilePreviewStrip from "@/app/components/FilePreviewStrip";
 
+// TEMPORARY: matches the flag in app/api/checkout/route.ts — AI Design is
+// paused for the public while results quality is being dialed in. Flip both
+// back to true/enable to reopen it; the rest of this page is untouched so
+// it just works again.
+const PUBLIC_AI_DESIGN_ENABLED = false;
+
 const TIER_LABEL_KEYS: Record<DesignTierKey, DictKey> = {
   standard: "designTierLabelStandard",
   better: "designTierLabelBetter",
   highest: "designTierLabelHighest",
+  premium: "designTierLabelPremium",
 };
 const TIER_NOTE_KEYS: Record<DesignTierKey, DictKey> = {
   standard: "designTierNoteStandard",
   better: "designTierNoteBetter",
   highest: "designTierNoteHighest",
+  premium: "designTierNotePremium",
 };
 
 export default function DesignPage() {
@@ -72,6 +80,18 @@ export default function DesignPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (!PUBLIC_AI_DESIGN_ENABLED) {
+    return (
+      <main>
+        <div className="card">
+          <p className="brand-label">Verdant Lawn Care</p>
+          <h1>{t("designPageTitle")}</h1>
+          <p style={{ color: "var(--text-muted)", marginTop: 8 }}>{t("designUnavailableMessage")}</p>
+        </div>
+      </main>
+    );
   }
 
   return (

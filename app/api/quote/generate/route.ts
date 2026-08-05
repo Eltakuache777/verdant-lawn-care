@@ -2,25 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateDesignConcept } from "@/lib/gemini";
 import { generateDesignVideo } from "@/lib/veo";
+import { DESIGN_TIERS, DesignTierKey, isImageUrl } from "@/lib/designTiers";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 
 // Triggered by the /design/success page once Stripe confirms payment.
-// Generates the paid-for concept count from the customer's reference photos.
+// Generates conceptsPerPhoto designs from EACH uploaded reference photo (see
+// lib/designTiers.ts) plus the tier's video count/length.
 //
 // NOTE: this runs the whole batch synchronously in one request, which is fine
 // on Render's persistent server (no serverless timeout) but would need to move
-// to a background job/queue on a host with hard request time limits.
-
-// Video clips cost real money per second (Veo), so only the first few
-// concepts of every order get one — cost stays flat regardless of how large
-// a tier (5/15/50 concepts) the customer paid for.
-const VIDEO_CONCEPT_COUNT = 3;
-
-function isImageUrl(url: string) {
-  return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(url);
-}
+// to a background job/queue on a host with hard request time limits —
+// especially now that a Premium-tier order can take several minutes just for
+// its extended video.
 
 export async function POST(req: NextRequest) {
   const { quoteRequestId } = await req.json();
@@ -43,6 +38,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No reference photo was provided" }, { status: 400 });
   }
 
+  const tierInfo = DESIGN_TIERS[quote.tier as DesignTierKey];
+  if (!tierInfo) {
+    return NextResponse.json({ error: `Unknown tier: ${quote.tier}` }, { status: 400 });
+  }
+
   await prisma.quoteRequest.update({ where: { id: quoteRequestId }, data: { status: "generating" } });
 
   try {
@@ -53,36 +53,40 @@ export async function POST(req: NextRequest) {
     // link (see that route for why) — the actual file always lives in
     // public/uploads regardless of URL prefix, so read it by filename.
     //
-    // Only photos can seed image generation (not videos) — cycling through every
-    // uploaded photo across the concept loop, instead of only ever using the
-    // first one, means an order with multiple reference photos actually uses
-    // all of them for variety.
+    // Only photos seed image generation (not videos someone attached for
+    // context) — EVERY uploaded photo gets its own full set of
+    // conceptsPerPhoto designs generated from it specifically, not spread/
+    // cycled across photos.
     const referencePhotoUrls = quote.photoUrls.filter(isImageUrl);
     const photosToUse = referencePhotoUrls.length > 0 ? referencePhotoUrls : quote.photoUrls;
 
     const conceptUrls: string[] = [];
     const conceptVideoUrls: string[] = [];
     const description = quote.description ?? "a beautifully landscaped yard";
-    for (let i = 0; i < quote.conceptCount; i++) {
-      const referenceUrl = photosToUse[i % photosToUse.length];
+    let conceptIndex = 0;
+
+    for (const referenceUrl of photosToUse) {
       const inputImagePath = path.join(uploadDir, path.basename(referenceUrl));
       const inputImage = await readFile(inputImagePath);
 
-      const resultBuffer = await generateDesignConcept(inputImage, description);
-      const filename = `${crypto.randomUUID()}.png`;
-      await writeFile(path.join(uploadDir, filename), resultBuffer);
-      conceptUrls.push(`/api/files/${filename}`);
+      for (let n = 0; n < tierInfo.conceptsPerPhoto; n++) {
+        const resultBuffer = await generateDesignConcept(inputImage, description);
+        const filename = `${crypto.randomUUID()}.png`;
+        await writeFile(path.join(uploadDir, filename), resultBuffer);
+        conceptUrls.push(`/api/files/${filename}`);
 
-      if (i < VIDEO_CONCEPT_COUNT) {
-        try {
-          const videoBuffer = await generateDesignVideo(resultBuffer, description);
-          const videoFilename = `${crypto.randomUUID()}.mp4`;
-          await writeFile(path.join(uploadDir, videoFilename), videoBuffer);
-          conceptVideoUrls.push(`/api/files/${videoFilename}`);
-        } catch (videoErr) {
-          // A failed video clip shouldn't sink the whole order — the still image concept is still delivered.
-          console.error(`Video generation failed for concept ${i}:`, videoErr);
+        if (conceptIndex < tierInfo.videoCount) {
+          try {
+            const videoBuffer = await generateDesignVideo(resultBuffer, description, tierInfo.videoDurationSeconds);
+            const videoFilename = `${crypto.randomUUID()}.mp4`;
+            await writeFile(path.join(uploadDir, videoFilename), videoBuffer);
+            conceptVideoUrls.push(`/api/files/${videoFilename}`);
+          } catch (videoErr) {
+            // A failed video clip shouldn't sink the whole order — the still image concept is still delivered.
+            console.error(`Video generation failed for concept ${conceptIndex}:`, videoErr);
+          }
         }
+        conceptIndex++;
       }
     }
 

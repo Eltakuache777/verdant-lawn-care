@@ -9,6 +9,11 @@ import { stripe } from "@/lib/stripe";
 // original generation did.
 const REGENERATE_PRICE = 20;
 
+// TEMPORARY: matches PUBLIC_AI_DESIGN_ENABLED in app/design/page.tsx and
+// app/api/checkout/route.ts — only the paid path is blocked, so the owner's
+// free tool can keep regenerating while this is paused.
+const PUBLIC_AI_DESIGN_ENABLED = false;
+
 export async function POST(req: NextRequest) {
   const { quoteRequestId } = await req.json();
   if (!quoteRequestId) {
@@ -24,6 +29,13 @@ export async function POST(req: NextRequest) {
   }
 
   const wasFree = original.amountPaid === 0;
+
+  if (!wasFree && !PUBLIC_AI_DESIGN_ENABLED) {
+    return NextResponse.json(
+      { error: "AI Design is temporarily unavailable while we improve results. Check back soon!" },
+      { status: 503 }
+    );
+  }
 
   const fresh = await prisma.quoteRequest.create({
     data: {

@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe, DESIGN_TIERS, DesignTierKey } from "@/lib/stripe";
+import { stripe } from "@/lib/stripe";
+import { DESIGN_TIERS, DesignTierKey, computeConceptCount } from "@/lib/designTiers";
 import { prisma } from "@/lib/prisma";
 
+// TEMPORARY: AI Design is paused for the public while results quality is
+// being dialed in. The owner's own free tool (a separate route,
+// /api/design/admin-generate) is unaffected. Remove this block to reopen it.
+const PUBLIC_AI_DESIGN_ENABLED = false;
+
 export async function POST(req: NextRequest) {
+  if (!PUBLIC_AI_DESIGN_ENABLED) {
+    return NextResponse.json(
+      { error: "AI Design is temporarily unavailable while we improve results. Check back soon!" },
+      { status: 503 }
+    );
+  }
+
   const { tier, customerEmail, customerName, photoUrls, description } = await req.json();
 
   if (!(tier in DESIGN_TIERS)) {
     return NextResponse.json({ error: "Invalid tier" }, { status: 400 });
   }
   const chosen = DESIGN_TIERS[tier as DesignTierKey];
+  const conceptCount = computeConceptCount(tier as DesignTierKey, photoUrls ?? []);
 
   const customer = await prisma.customer.upsert({
     where: { email: customerEmail },
@@ -21,14 +35,14 @@ export async function POST(req: NextRequest) {
       customerId: customer.id,
       tier,
       amountPaid: chosen.price,
-      conceptCount: chosen.concepts,
+      conceptCount,
       photoUrls: photoUrls ?? [],
       description,
       status: "awaiting_payment",
     },
   });
 
-  // Real Stripe Checkout session — this is the actual $50/$60/$100 charge.
+  // Real Stripe Checkout session — this is the actual charge.
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: customerEmail,
@@ -37,7 +51,7 @@ export async function POST(req: NextRequest) {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `${chosen.label} AI Design Package (${chosen.concepts} concepts)`,
+            name: `${chosen.label} AI Design Package (${conceptCount} concepts)`,
           },
           unit_amount: chosen.price * 100, // Stripe uses cents
         },

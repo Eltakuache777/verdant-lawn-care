@@ -191,7 +191,7 @@ export default function AdminShell({
   const [designEmail, setDesignEmail] = useState("");
   const [designDescription, setDesignDescription] = useState("");
   const [designFiles, setDesignFiles] = useState<File[]>([]);
-  const [designTier, setDesignTier] = useState<"standard" | "better" | "highest">("standard");
+  const [designTier, setDesignTier] = useState<"standard" | "better" | "highest" | "premium">("standard");
   const [designSubmitting, setDesignSubmitting] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
