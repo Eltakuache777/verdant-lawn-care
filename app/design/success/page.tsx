@@ -9,6 +9,7 @@ type QuoteRequest = {
   status: string;
   conceptUrls: string[];
   conceptVideoUrls: string[];
+  conceptMaterials: string[];
   conceptCount: number;
   tier: string;
   amountPaid: number;
@@ -221,15 +222,32 @@ function DesignSuccessContent() {
           items={activeItems}
           startIndex={lightboxIndex}
           onClose={() => setLightboxKind(null)}
-          renderExtra={
-            loggedIn
-              ? (item) => (
+          renderExtra={(item, index) => {
+            const materials = quote?.conceptMaterials?.[index];
+            return (
+              <>
+                {materials && (
+                  <p
+                    style={{
+                      color: "#e0e6e2",
+                      fontSize: 13,
+                      maxWidth: 480,
+                      textAlign: "center",
+                      margin: 0,
+                    }}
+                  >
+                    <strong style={{ color: "#fff" }}>{t("materialsUsedLabel")}: </strong>
+                    {materials}
+                  </p>
+                )}
+                {loggedIn && (
                   <button type="button" onClick={() => toggleSave(item.url)} style={{ padding: "8px 16px" }}>
                     {savedUrls.has(item.url) ? `★ ${t("savedBtn")}` : `☆ ${t("saveBtn")}`}
                   </button>
-                )
-              : undefined
-          }
+                )}
+              </>
+            );
+          }}
         />
       )}
     </main>

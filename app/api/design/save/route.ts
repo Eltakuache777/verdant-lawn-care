@@ -20,7 +20,24 @@ export async function GET(req: NextRequest) {
     where: { ownerEmail: session.email },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json(items);
+
+  // Fold in each item's materials list (same one shown on /design/success)
+  // by matching its mediaUrl back to the concept/video index it came from.
+  const quotes = await prisma.quoteRequest.findMany({
+    where: { id: { in: Array.from(new Set(items.map((i) => i.quoteRequestId))) } },
+    select: { id: true, conceptUrls: true, conceptVideoUrls: true, conceptMaterials: true },
+  });
+  const quoteById = new Map(quotes.map((q) => [q.id, q]));
+
+  const withMaterials = items.map((item) => {
+    const quote = quoteById.get(item.quoteRequestId);
+    const index = quote ? quote.conceptUrls.indexOf(item.mediaUrl) : -1;
+    const videoIndex = index === -1 && quote ? quote.conceptVideoUrls.indexOf(item.mediaUrl) : -1;
+    const materials = quote ? quote.conceptMaterials[index !== -1 ? index : videoIndex] || null : null;
+    return { ...item, materials };
+  });
+
+  return NextResponse.json(withMaterials);
 }
 
 export async function POST(req: NextRequest) {

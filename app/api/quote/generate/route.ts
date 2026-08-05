@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDesignConcept, describeYardVideo } from "@/lib/gemini";
+import { generateDesignConcept, describeYardVideo, describeConceptMaterials } from "@/lib/gemini";
 import { generateDesignVideo } from "@/lib/veo";
 import { DESIGN_TIERS, DesignTierKey, isImageUrl, isVideoUrl, videoMimeType } from "@/lib/designTiers";
 import { mkdir, readFile, writeFile } from "fs/promises";
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
 
     const conceptUrls: string[] = [];
     const conceptVideoUrls: string[] = [];
+    const conceptMaterials: string[] = [];
     let description = quote.description ?? "a beautifully landscaped yard";
 
     // Any attached video isn't used to seed images directly, but it's still
@@ -106,6 +107,16 @@ export async function POST(req: NextRequest) {
         await writeFile(path.join(uploadDir, filename), resultBuffer);
         conceptUrls.push(`/api/files/${filename}`);
 
+        try {
+          conceptMaterials.push(await describeConceptMaterials(resultBuffer));
+        } catch (materialsErr) {
+          // Same treatment as a failed video clip -- don't sink the whole
+          // concept over this, just push an empty entry so the array stays
+          // aligned index-wise with conceptUrls.
+          console.error(`Materials description failed for concept ${conceptIndex}:`, materialsErr);
+          conceptMaterials.push("");
+        }
+
         if (conceptIndex < tierInfo.videoCount) {
           try {
             const videoBuffer = await generateDesignVideo(resultBuffer, description, tierInfo.videoDurationSeconds);
@@ -123,7 +134,7 @@ export async function POST(req: NextRequest) {
 
     const updated = await prisma.quoteRequest.update({
       where: { id: quoteRequestId },
-      data: { conceptUrls, conceptVideoUrls, status: "generated" },
+      data: { conceptUrls, conceptVideoUrls, conceptMaterials, status: "generated" },
     });
     return NextResponse.json(updated);
   } catch (err: any) {

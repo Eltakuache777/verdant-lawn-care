@@ -95,15 +95,14 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
   return Buffer.from(inline.data, "base64");
 }
 
-// Lets a customer attach a silent walkthrough video of their yard as extra
-// visual reference (not spoken instructions) — the image editor above can
-// only take a still photo, so instead we have a separate text/vision Gemini
-// model "watch" the video and describe what it sees, then fold that
-// description into the prompt alongside whatever the customer typed. A
-// video alone still isn't enough to generate from — see the "at least one
-// photo" check in app/api/quote/generate/route.ts.
-const VIDEO_DESCRIBE_MODEL_FALLBACK = "gemini-3.1-flash";
-let cachedVideoDescribeModel: string | null = null;
+// Shared text/vision model used for two things: (1) letting a customer
+// attach a silent walkthrough video of their yard as extra visual reference
+// (the image editor above can only take a still photo, so a separate call
+// "watches" the video and describes what it sees, folded into the prompt),
+// and (2) listing out the materials/plants visible in a finished concept
+// image (see describeConceptMaterials below).
+const VISION_MODEL_FALLBACK = "gemini-3.1-flash";
+let cachedVisionModel: string | null = null;
 
 // A model existing in the list (and even claiming to support generateContent)
 // doesn't mean it'll actually work — Google keeps sunset models listed and
@@ -125,12 +124,12 @@ function versionScore(name: string): number {
   return match ? parseFloat(match[1]) : 0;
 }
 
-async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
-  if (cachedVideoDescribeModel) return cachedVideoDescribeModel;
+async function resolveVisionModel(apiKey: string): Promise<string> {
+  if (cachedVisionModel) return cachedVisionModel;
 
-  if (await probeModel(apiKey, VIDEO_DESCRIBE_MODEL_FALLBACK)) {
-    cachedVideoDescribeModel = VIDEO_DESCRIBE_MODEL_FALLBACK;
-    return cachedVideoDescribeModel;
+  if (await probeModel(apiKey, VISION_MODEL_FALLBACK)) {
+    cachedVisionModel = VISION_MODEL_FALLBACK;
+    return cachedVisionModel;
   }
 
   // The guessed model id doesn't exist (or isn't available) on this API
@@ -141,7 +140,7 @@ async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
     headers: { "x-goog-api-key": apiKey },
   });
   if (!listRes.ok) {
-    throw new Error(`Could not resolve a Gemini video model and model listing failed ${listRes.status}`);
+    throw new Error(`Could not resolve a Gemini vision model and model listing failed ${listRes.status}`);
   }
   const listData = await listRes.json();
   const candidates: any[] = (listData.models ?? [])
@@ -158,12 +157,12 @@ async function resolveVideoDescribeModel(apiKey: string): Promise<string> {
 
   for (const candidate of candidates) {
     if (await probeModel(apiKey, candidate)) {
-      cachedVideoDescribeModel = candidate;
-      console.log(`describeYardVideo: resolved video model to ${candidate}`);
+      cachedVisionModel = candidate;
+      console.log(`resolveVisionModel: resolved to ${candidate}`);
       return candidate;
     }
   }
-  throw new Error("No working Gemini text/vision model found for video description");
+  throw new Error("No working Gemini text/vision model found");
 }
 
 // Reads the video off disk as a stream rather than a full Buffer — the
@@ -238,7 +237,7 @@ export async function describeYardVideo(videoPath: string, mimeType: string): Pr
   }
 
   const uploaded = await uploadFileToGemini(apiKey, videoPath, mimeType);
-  const model = await resolveVideoDescribeModel(apiKey);
+  const model = await resolveVisionModel(apiKey);
 
   const body = {
     contents: [
@@ -262,6 +261,44 @@ export async function describeYardVideo(videoPath: string, mimeType: string): Pr
   const text = data.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
   if (!text) {
     throw new Error(`Gemini didn't return a video description: ${JSON.stringify(data).slice(0, 500)}`);
+  }
+  return text.trim();
+}
+
+// A short "what's in this picture" materials list for a finished design
+// concept -- shown alongside each photo/video so a customer can see what
+// stone, plants, mulch, etc. it's actually depicting. Runs once per concept
+// image (not per video, since a video is generated from its concept image
+// and shows the same materials) right after that image is generated.
+export async function describeConceptMaterials(conceptImage: Buffer): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY isn't configured");
+  }
+
+  const model = await resolveVisionModel(apiKey);
+  const body = {
+    contents: [
+      {
+        parts: [
+          {
+            text: "This is a landscaping design concept image. List the hardscape materials (e.g. flagstone, brick pavers, gravel, boulders, retaining wall block), plants (by common name where recognizable, e.g. boxwood, red mulch bed, ornamental grass), and ground cover (mulch, sod, soil) visible in the image. Format as a short comma-separated list, most prominent items first. Only list what's actually visible -- don't guess at plant species you're not confident about, just describe them generically (e.g. 'flowering shrub') instead.",
+          },
+          { inline_data: { mime_type: "image/png", data: conceptImage.toString("base64") } },
+        ],
+      },
+    ],
+  };
+
+  const res = await callGeminiUrl(apiKey, `${GEMINI_BASE}/models/${model}:generateContent`, body);
+  if (!res.ok) {
+    throw new Error(`Gemini materials description error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
+  if (!text) {
+    throw new Error(`Gemini didn't return a materials list: ${JSON.stringify(data).slice(0, 500)}`);
   }
   return text.trim();
 }

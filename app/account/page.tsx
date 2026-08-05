@@ -26,7 +26,7 @@ type MyDesign = {
   description: string | null;
   createdAt: string;
 };
-type SavedItem = { id: string; mediaUrl: string; quoteRequestId: string; createdAt: string };
+type SavedItem = { id: string; mediaUrl: string; quoteRequestId: string; createdAt: string; materials: string | null };
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
@@ -421,11 +421,22 @@ export default function AccountPage() {
           items={savedItems.map((i): LightboxItem => ({ url: i.mediaUrl, isVideo: isVideoUrl(i.mediaUrl) }))}
           startIndex={savedLightboxIndex}
           onClose={() => setSavedLightboxIndex(null)}
-          renderExtra={(item) => (
-            <button type="button" onClick={() => unsaveItem(item.url)} style={{ padding: "8px 16px" }}>
-              ★ {t("unsaveBtn")}
-            </button>
-          )}
+          renderExtra={(item, index) => {
+            const materials = savedItems[index]?.materials;
+            return (
+              <>
+                {materials && (
+                  <p style={{ color: "#e0e6e2", fontSize: 13, maxWidth: 480, textAlign: "center", margin: 0 }}>
+                    <strong style={{ color: "#fff" }}>{t("materialsUsedLabel")}: </strong>
+                    {materials}
+                  </p>
+                )}
+                <button type="button" onClick={() => unsaveItem(item.url)} style={{ padding: "8px 16px" }}>
+                  ★ {t("unsaveBtn")}
+                </button>
+              </>
+            );
+          }}
         />
       )}
     </main>
