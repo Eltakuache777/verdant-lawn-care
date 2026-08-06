@@ -60,6 +60,44 @@ label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px; c
   text-transform: uppercase;
 }
 
+/* Admin dashboard outer shell: fixed-height, internally-scrolling app-shell
+   layout on desktop (sidebar + main pane each manage their own scroll).
+   On mobile this nested-scroll-region approach silently clips content —
+   the fixed height + overflow:hidden chain has no scroll affordance of its
+   own, so anything taller than one screen becomes genuinely unreachable
+   (confirmed via a real screen recording: scrolling stops partway down the
+   Schedule view's job list with no way to reach the rest). Below 720px we
+   drop the fixed height and let the whole page scroll normally instead. */
+.admin-shell {
+  height: calc(100vh - 65px);
+}
+.admin-body {
+  overflow: hidden;
+}
+.admin-view {
+  overflow: hidden;
+}
+.admin-view-scroll {
+  height: 100%;
+  overflow-y: auto;
+}
+@media (max-width: 720px) {
+  .admin-shell {
+    height: auto;
+    min-height: calc(100vh - 65px);
+  }
+  .admin-body {
+    overflow: visible;
+  }
+  .admin-view {
+    overflow: visible;
+  }
+  .admin-view-scroll {
+    height: auto;
+    overflow-y: visible;
+  }
+}
+
 /* Admin dashboard two-pane views (Schedule, Messages, Reports) — side by side on
    desktop, stacked top-to-bottom on narrow screens so nothing gets cramped. */
 .admin-split {
@@ -76,10 +114,11 @@ label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px; c
   .admin-split {
     flex-direction: column;
     height: auto;
-    overflow-y: auto;
+    overflow-y: visible;
   }
   .admin-split-pane {
     width: 100%;
+    overflow-y: visible !important;
   }
   .admin-split-pane-bordered {
     border-right: none;

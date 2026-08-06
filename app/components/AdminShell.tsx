@@ -837,7 +837,7 @@ export default function AdminShell({
   );
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 65px)" }}>
+    <div className="admin-shell" style={{ display: "flex" }}>
       <div
         style={{
           width: 76,
@@ -903,7 +903,7 @@ export default function AdminShell({
         ))}
       </div>
 
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div className="admin-body" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <div
           style={{
             padding: "8px 20px",
@@ -932,7 +932,7 @@ export default function AdminShell({
             Log out
           </button>
         </div>
-        <div style={{ flex: 1, overflow: "hidden" }}>
+        <div className="admin-view" style={{ flex: 1 }}>
           {view === "schedule" && (
           <div className="admin-split">
             <div className="admin-split-pane admin-split-pane-bordered" style={{ padding: 20, overflowY: "auto" }}>
@@ -1304,7 +1304,7 @@ export default function AdminShell({
         )}
 
         {view === "prices" && (
-          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+          <div className="admin-view-scroll" style={{ padding: 20 }}>
             <div className="card" style={{ margin: "0 0 24px" }}>
               <h1>Edit service prices</h1>
               {services.map((s) => (
@@ -1346,7 +1346,7 @@ export default function AdminShell({
         )}
 
         {view === "reports" && report?.role === "worker" && (
-          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+          <div className="admin-view-scroll" style={{ padding: 20 }}>
             <h3 style={{ marginTop: 0 }}>Your earnings</h3>
             {reportError && <p>{reportError}</p>}
             {report.myPayments.length === 0 && (
@@ -1891,7 +1891,7 @@ export default function AdminShell({
         )}
 
         {view === "design" && (
-          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+          <div className="admin-view-scroll" style={{ padding: 20 }}>
             <div className="card" style={{ margin: 0 }}>
               <h1>Free AI design (owner)</h1>
               <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
@@ -2044,7 +2044,7 @@ export default function AdminShell({
         )}
 
         {view === "workers" && (
-          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+          <div className="admin-view-scroll" style={{ padding: 20 }}>
             <div className="card" style={{ margin: "0 0 24px" }}>
               <h1>Your password</h1>
               <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
@@ -2166,7 +2166,7 @@ export default function AdminShell({
         )}
 
         {view === "feedback" && (
-          <div style={{ padding: 20, overflowY: "auto", height: "100%" }}>
+          <div className="admin-view-scroll" style={{ padding: 20 }}>
             <div className="card" style={{ margin: 0 }}>
               <h1>Feedback</h1>
               <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
