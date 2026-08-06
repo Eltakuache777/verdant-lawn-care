@@ -40,6 +40,23 @@ model Material {
   updatedAt DateTime @updatedAt
 }
 
+// A browsable reference catalog of real landscaping materials/plants —
+// separate from Material above, which is the owner's own priced quote list.
+// This is deliberately priceless: it's for customers to see what's out
+// there (flowers, trees, rock/stone, mulch, soil) before describing what
+// they want, not a price sheet. Seeded once from real research, editable
+// by staff afterward like everything else customer-facing.
+model MaterialCatalogItem {
+  id          String   @id @default(cuid())
+  category    String // "Flowers" | "Trees" | "Rocks & Stone" | "Mulch" | "Soil"
+  name        String
+  description String? // e.g. colors/sizes available, notable traits
+  createdAt   DateTime @default(now())
+
+  @@unique([category, name])
+  @@index([category])
+}
+
 model Customer {
   id            String    @id @default(cuid())
   name          String
