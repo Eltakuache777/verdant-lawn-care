@@ -12,6 +12,7 @@ const CATEGORIES: { value: string; labelKey: DictKey }[] = [
   { value: "Plants", labelKey: "categoryPlants" },
   { value: "Trees", labelKey: "categoryTrees" },
   { value: "Bushes & Hedges", labelKey: "categoryBushesHedges" },
+  { value: "Vegetables & Herbs", labelKey: "categoryVegetablesHerbs" },
   { value: "Rocks & Stone", labelKey: "categoryRocksStone" },
   { value: "Mulch", labelKey: "categoryMulch" },
   { value: "Soil", labelKey: "categorySoil" },

@@ -3,6 +3,7 @@ export const CATALOG_CATEGORIES = [
   "Plants",
   "Trees",
   "Bushes & Hedges",
+  "Vegetables & Herbs",
   "Rocks & Stone",
   "Mulch",
   "Soil",
