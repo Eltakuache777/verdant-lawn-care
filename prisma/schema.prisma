@@ -51,6 +51,7 @@ model MaterialCatalogItem {
   category    String // "Flowers" | "Trees" | "Rocks & Stone" | "Mulch" | "Soil"
   name        String
   description String? // e.g. colors/sizes available, notable traits
+  imageUrl    String? // AI-generated representative photo (see scripts/generateCatalogImages.ts) -- never scraped from other sites, avoids copyright issues
   createdAt   DateTime @default(now())
 
   @@unique([category, name])

@@ -95,6 +95,41 @@ export async function generateDesignConcept(inputImage: Buffer, prompt: string):
   return Buffer.from(inline.data, "base64");
 }
 
+// Pure text-to-image, no input photo -- used to generate a representative
+// product photo for a materials-catalog entry (a type of mulch, a tree
+// species, etc.), never scraped from another site to avoid copyright issues.
+export async function generateStockPhoto(prompt: string): Promise<Buffer> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY isn't configured");
+  }
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+  };
+
+  const res = await callGemini(apiKey, body);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${text}`);
+  }
+
+  const data = await res.json();
+  const candidate = data.candidates?.[0];
+  const parts: any[] = candidate?.content?.parts ?? [];
+  const imagePart = parts.find((p) => p.inlineData || p.inline_data);
+  const inline = imagePart?.inlineData || imagePart?.inline_data;
+  if (!inline?.data) {
+    const explanation = parts.find((p) => p.text)?.text;
+    const reason = candidate?.finishReason ?? data.promptFeedback?.blockReason;
+    throw new Error(
+      `Gemini did not return an image (${reason ?? "unknown reason"}): ${explanation ?? JSON.stringify(data).slice(0, 500)}`
+    );
+  }
+  return Buffer.from(inline.data, "base64");
+}
+
 // Shared text/vision model used for two things: (1) letting a customer
 // attach a silent walkthrough video of their yard as extra visual reference
 // (the image editor above can only take a still photo, so a separate call

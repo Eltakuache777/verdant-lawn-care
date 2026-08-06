@@ -4,7 +4,7 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import type { DictKey } from "@/lib/i18n";
 
 type MaterialRow = { name: string; unit: string; price: number };
-type CatalogItem = { id: string; category: string; name: string; description: string | null };
+type CatalogItem = { id: string; category: string; name: string; description: string | null; imageUrl: string | null };
 type Session = { loggedIn: boolean; role?: "admin" | "worker" | "customer" };
 
 const CATEGORIES: { value: string; labelKey: DictKey }[] = [
@@ -193,6 +193,8 @@ export default function MaterialsPage() {
                   key={item.id}
                   style={{
                     position: "relative",
+                    display: "flex",
+                    gap: 12,
                     border: "1px solid var(--border)",
                     borderRadius: 8,
                     padding: "10px 14px",
@@ -224,10 +226,19 @@ export default function MaterialsPage() {
                       ✕
                     </button>
                   )}
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{item.name}</p>
-                  {item.description && (
-                    <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{item.description}</p>
+                  {item.imageUrl && (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+                    />
                   )}
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{item.name}</p>
+                    {item.description && (
+                      <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{item.description}</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
