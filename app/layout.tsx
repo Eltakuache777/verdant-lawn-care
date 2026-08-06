@@ -4,6 +4,7 @@ import AssistantWidget from "./components/AssistantWidget";
 import FeedbackWidget from "./components/FeedbackWidget";
 import NavBar from "./components/NavBar";
 import NotificationPrompt from "./components/NotificationPrompt";
+import PwaRegister from "./components/PwaRegister";
 import { LanguageProvider } from "./components/LanguageProvider";
 import { ChatProvider } from "./components/ChatContext";
 import { AssistantProvider } from "./components/AssistantContext";
@@ -52,6 +53,18 @@ export const metadata = {
   },
   robots: { index: true, follow: true },
   alternates: { canonical: SITE_URL },
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+export const viewport = {
+  themeColor: "#0a160f",
 };
 
 // Reviews are real customer submissions (see /reviews and the Review model) —
@@ -118,6 +131,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <AssistantWidget />
                 <FeedbackWidget />
                 <NotificationPrompt />
+                <PwaRegister />
               </FeedbackProvider>
             </AssistantProvider>
           </ChatProvider>
