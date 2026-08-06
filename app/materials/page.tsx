@@ -9,7 +9,9 @@ type Session = { loggedIn: boolean; role?: "admin" | "worker" | "customer" };
 
 const CATEGORIES: { value: string; labelKey: DictKey }[] = [
   { value: "Flowers", labelKey: "categoryFlowers" },
+  { value: "Plants", labelKey: "categoryPlants" },
   { value: "Trees", labelKey: "categoryTrees" },
+  { value: "Bushes & Hedges", labelKey: "categoryBushesHedges" },
   { value: "Rocks & Stone", labelKey: "categoryRocksStone" },
   { value: "Mulch", labelKey: "categoryMulch" },
   { value: "Soil", labelKey: "categorySoil" },
