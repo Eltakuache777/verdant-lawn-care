@@ -225,6 +225,8 @@ const dict = {
     materialsItemNameLabel: "Name",
     materialsItemDescLabel: "Description (optional)",
     materialsItemAddBtn: "Add",
+    materialsItemCountSingular: "item",
+    materialsItemCountPlural: "items",
 
     designTierLabelStandard: "Standard",
     designTierNoteStandard: "10 designs per photo + 1 short video",
@@ -523,6 +525,8 @@ const dict = {
     materialsItemNameLabel: "Nombre",
     materialsItemDescLabel: "Descripción (opcional)",
     materialsItemAddBtn: "Agregar",
+    materialsItemCountSingular: "artículo",
+    materialsItemCountPlural: "artículos",
 
     designTierLabelStandard: "Estándar",
     designTierNoteStandard: "10 diseños por foto + 1 video corto",

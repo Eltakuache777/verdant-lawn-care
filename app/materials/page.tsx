@@ -7,12 +7,12 @@ type MaterialRow = { name: string; unit: string; price: number };
 type CatalogItem = { id: string; category: string; name: string; description: string | null };
 type Session = { loggedIn: boolean; role?: "admin" | "worker" | "customer" };
 
-const CATEGORIES: { value: string; labelKey: DictKey; icon: string }[] = [
-  { value: "Flowers", labelKey: "categoryFlowers", icon: "🌸" },
-  { value: "Trees", labelKey: "categoryTrees", icon: "🌳" },
-  { value: "Rocks & Stone", labelKey: "categoryRocksStone", icon: "🪨" },
-  { value: "Mulch", labelKey: "categoryMulch", icon: "🪵" },
-  { value: "Soil", labelKey: "categorySoil", icon: "🌱" },
+const CATEGORIES: { value: string; labelKey: DictKey }[] = [
+  { value: "Flowers", labelKey: "categoryFlowers" },
+  { value: "Trees", labelKey: "categoryTrees" },
+  { value: "Rocks & Stone", labelKey: "categoryRocksStone" },
+  { value: "Mulch", labelKey: "categoryMulch" },
+  { value: "Soil", labelKey: "categorySoil" },
 ];
 
 export default function MaterialsPage() {
@@ -20,6 +20,7 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [session, setSession] = useState<Session | null>(null);
 
+  const [allItems, setAllItems] = useState<CatalogItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -35,6 +36,9 @@ export default function MaterialsPage() {
     fetch("/api/materials")
       .then((r) => r.json())
       .then(setMaterials);
+    fetch("/api/material-catalog")
+      .then((r) => r.json())
+      .then(setAllItems);
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then(setSession)
@@ -77,9 +81,11 @@ export default function MaterialsPage() {
         }),
       });
       if (res.ok) {
+        const created = await res.json();
         setNewName("");
         setNewDesc("");
         loadItems(selectedCategory);
+        setAllItems((prev) => [...prev, created]);
       }
     } finally {
       setAdding(false);
@@ -90,7 +96,12 @@ export default function MaterialsPage() {
     if (!selectedCategory) return;
     if (!confirm(t("materialsCatalogConfirmDelete"))) return;
     setItems((prev) => prev.filter((i) => i.id !== id));
+    setAllItems((prev) => prev.filter((i) => i.id !== id));
     await fetch(`/api/material-catalog/${id}`, { method: "DELETE" });
+  }
+
+  function countFor(category: string) {
+    return allItems.filter((i) => i.category === category).length;
   }
 
   return (
@@ -104,7 +115,7 @@ export default function MaterialsPage() {
             <p style={{ color: "var(--text-muted)", marginTop: -4, marginBottom: 20 }}>
               {t("materialsBrowseSubtitle")}
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {CATEGORIES.map((c) => (
                 <button
                   key={c.value}
@@ -114,18 +125,20 @@ export default function MaterialsPage() {
                     setSearch("");
                   }}
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "20px 10px",
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
                     border: "1px solid var(--border)",
-                    borderRadius: 10,
-                    background: "var(--bg-elevated)",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    background: "transparent",
                   }}
                 >
-                  <span style={{ fontSize: 30 }}>{c.icon}</span>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{t(c.labelKey)}</span>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "var(--text)" }}>{t(c.labelKey)}</p>
+                  <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                    {countFor(c.value)}{" "}
+                    {countFor(c.value) === 1 ? t("materialsItemCountSingular") : t("materialsItemCountPlural")}
+                  </p>
                 </button>
               ))}
             </div>

@@ -21,6 +21,11 @@ const ITEMS: { category: string; name: string; description?: string }[] = [
   { category: "Rocks & Stone", name: "Drainage Gravel", description: "Coarse gravel for French drains and drainage beds." },
   { category: "Rocks & Stone", name: "Slate", description: "Flat, layered natural stone. Walkways and accents, gray/blue tones." },
   { category: "Rocks & Stone", name: "Bluestone", description: "Dense blue-gray flagstone. Premium patios and steps." },
+  { category: "Rocks & Stone", name: "Rip Rap", description: "Large angular stones, 6-24in. Erosion control on slopes and drainage." },
+  { category: "Rocks & Stone", name: "Crushed Limestone", description: "Common Central Texas base rock, white to gray. Driveways and road base." },
+  { category: "Rocks & Stone", name: "Limestone Road Base", description: "Compactable limestone fines, standard driveway and path sub-base in this area." },
+  { category: "Rocks & Stone", name: "Caliche", description: "Native Central Texas calcium-carbonate base material, common for driveways." },
+  { category: "Rocks & Stone", name: "Moss Rock", description: "Native Texas limestone boulders with natural moss/lichen patina, popular accent stone." },
 
   // Mulch
   { category: "Mulch", name: "Hardwood Mulch", description: "Rich dark color from oak/maple/beech. Slowly acidifies soil." },
