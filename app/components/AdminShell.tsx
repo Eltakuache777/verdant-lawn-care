@@ -45,7 +45,14 @@ type Thread = {
   lastAt: string;
 };
 type ChatMsg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
-type WorkerRow = { id: string; email: string; name: string | null; isAdmin: boolean; addedAt: string };
+type WorkerRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  isAdmin: boolean;
+  freeAiDesign: boolean;
+  addedAt: string;
+};
 type RecurringPlan = {
   id: string;
   services: string[];
@@ -94,6 +101,13 @@ function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
 }
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
 const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "schedule", icon: "📅", label: "Schedule" },
   { key: "messages", icon: "💬", label: "Messages" },
@@ -118,6 +132,8 @@ export default function AdminShell({
 }) {
   const [view, setView] = useState<View>("schedule");
   const [newBookingCount, setNewBookingCount] = useState(0);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [enablingNotifs, setEnablingNotifs] = useState(false);
 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -265,12 +281,66 @@ export default function AdminShell({
     }
   }
 
+  // Subscribes this device to real push notifications (the ones that reach
+  // you even when the app/tab is closed) — separate from the in-tab-only
+  // `new Notification(...)` in notifyNewBookings above, which only fires
+  // while the admin panel is open in a browser tab. Safe to call repeatedly:
+  // the backend upserts by endpoint, so re-subscribing an already-subscribed
+  // device is a no-op.
+  async function ensurePushSubscription(): Promise<boolean> {
+    if (typeof window === "undefined" || !myEmail) return false;
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!publicKey) return false;
+
+    let permission = Notification.permission;
+    if (permission === "default") {
+      permission = await Notification.requestPermission().catch(() => "default" as NotificationPermission);
+    }
+    setNotifPermission(permission);
+    if (permission !== "granted") return false;
+
+    try {
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      const existing = await registration.pushManager.getSubscription();
+      const subscription =
+        existing ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        }));
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: myEmail, subscription: subscription.toJSON() }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function enableNotifications() {
+    setEnablingNotifs(true);
+    try {
+      await ensurePushSubscription();
+    } finally {
+      setEnablingNotifs(false);
+    }
+  }
+
   useEffect(() => {
     lastSeenBookingRef.current = localStorage.getItem(lastSeenStorageKey);
     if (lastSeenBookingRef.current) seenAnyBookingsRef.current = true;
 
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {});
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPermission(Notification.permission);
+      // Already granted (e.g. from a previous visit) but this device may
+      // never have completed the actual push subscription — finish it
+      // silently rather than waiting for a manual click.
+      if (Notification.permission === "granted") {
+        ensurePushSubscription();
+      }
     }
 
     fetch("/api/services")
@@ -571,6 +641,15 @@ export default function AdminShell({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: w.email, name: w.name || undefined, isAdmin: !w.isAdmin }),
+    });
+    if (res.ok) loadWorkers();
+  }
+
+  async function toggleWorkerFreeAiDesign(w: WorkerRow) {
+    const res = await fetch(`/api/workers/${w.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ freeAiDesign: !w.freeAiDesign }),
     });
     if (res.ok) loadWorkers();
   }
@@ -924,13 +1003,31 @@ export default function AdminShell({
               </>
             )}
           </span>
-          <button
-            type="button"
-            onClick={logOut}
-            style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 400, fontSize: 12, padding: "4px 8px" }}
-          >
-            Log out
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {notifPermission === "granted" ? (
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>🔔 Notifications on</span>
+            ) : notifPermission === "denied" ? (
+              <span title="Blocked in your browser/phone settings — notifications can't be re-enabled here.">
+                🔕 Notifications blocked
+              </span>
+            ) : notifPermission === "default" ? (
+              <button
+                type="button"
+                onClick={enableNotifications}
+                disabled={enablingNotifs}
+                style={{ background: "transparent", color: "var(--accent)", fontWeight: 600, fontSize: 12, padding: "4px 8px" }}
+              >
+                {enablingNotifs ? "Enabling…" : "🔔 Enable notifications"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={logOut}
+              style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 400, fontSize: 12, padding: "4px 8px" }}
+            >
+              Log out
+            </button>
+          </div>
         </div>
         <div className="admin-view" style={{ flex: 1 }}>
           {view === "schedule" && (
@@ -2137,12 +2234,24 @@ export default function AdminShell({
                             ADMIN
                           </span>
                         )}
+                        {w.freeAiDesign && (
+                          <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 8, color: "var(--gold)" }}>
+                            FREE AI DESIGN
+                          </span>
+                        )}
                       </p>
                       {w.name && (
                         <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{w.email}</p>
                       )}
                     </div>
-                    <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleWorkerFreeAiDesign(w)}
+                        style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}
+                      >
+                        {w.freeAiDesign ? "Revoke free AI Design" : "Grant free AI Design"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => toggleWorkerAdmin(w)}

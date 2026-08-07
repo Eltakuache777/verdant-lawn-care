@@ -8,7 +8,7 @@ import { z } from "zod";
 export async function GET() {
   const workers = await prisma.worker.findMany({
     orderBy: { addedAt: "desc" },
-    select: { id: true, email: true, name: true, isAdmin: true, addedAt: true },
+    select: { id: true, email: true, name: true, isAdmin: true, freeAiDesign: true, addedAt: true },
   });
   return NextResponse.json(workers);
 }
@@ -17,6 +17,7 @@ const BodySchema = z.object({
   email: z.string().email(),
   name: z.string().optional(),
   isAdmin: z.boolean().optional(),
+  freeAiDesign: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -28,9 +29,18 @@ export async function POST(req: NextRequest) {
 
   const worker = await prisma.worker.upsert({
     where: { email },
-    update: { name: parsed.data.name, isAdmin: parsed.data.isAdmin ?? undefined },
-    create: { email, name: parsed.data.name, isAdmin: parsed.data.isAdmin ?? false },
-    select: { id: true, email: true, name: true, isAdmin: true, addedAt: true },
+    update: {
+      name: parsed.data.name,
+      isAdmin: parsed.data.isAdmin ?? undefined,
+      freeAiDesign: parsed.data.freeAiDesign ?? undefined,
+    },
+    create: {
+      email,
+      name: parsed.data.name,
+      isAdmin: parsed.data.isAdmin ?? false,
+      freeAiDesign: parsed.data.freeAiDesign ?? false,
+    },
+    select: { id: true, email: true, name: true, isAdmin: true, freeAiDesign: true, addedAt: true },
   });
 
   await sendLoginCode(email);

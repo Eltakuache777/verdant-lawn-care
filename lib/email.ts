@@ -16,6 +16,9 @@ type BookingConfirmationInput = {
   paymentMethod?: string | null;
 };
 
+// Deliberately doesn't include a dollar amount — the confirmation goes out
+// the moment someone books, before staff have actually looked at the job, so
+// a number here would read as a locked-in final price when it isn't one.
 export async function sendBookingConfirmation(booking: BookingConfirmationInput) {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
@@ -38,8 +41,8 @@ export async function sendBookingConfirmation(booking: BookingConfirmationInput)
     to: booking.customerEmail,
     from: { email: fromEmail, name: "Verdant Lawn Care" },
     subject: "Your Verdant Lawn Care appointment is confirmed",
-    text: `Hi ${booking.customerName},\n\nYour appointment is confirmed:\n\nServices: ${booking.services.join(", ")}\nWhen: ${when}\nAddress: ${booking.address}\nTotal: $${booking.totalPrice}${paymentLabel ? `\nPayment: ${paymentLabel}` : ""}\n\nThanks for choosing Verdant Lawn Care!`,
-    html: `${logo}<p>Hi ${booking.customerName},</p><p>Your appointment is confirmed:</p><ul><li><strong>Services:</strong> ${booking.services.join(", ")}</li><li><strong>When:</strong> ${when}</li><li><strong>Address:</strong> ${booking.address}</li><li><strong>Total:</strong> $${booking.totalPrice}</li>${paymentLabel ? `<li><strong>Payment:</strong> ${paymentLabel}</li>` : ""}</ul><p>Thanks for choosing Verdant Lawn Care!</p>`,
+    text: `Hi ${booking.customerName},\n\nYour appointment is confirmed:\n\nServices: ${booking.services.join(", ")}\nWhen: ${when}\nAddress: ${booking.address}${paymentLabel ? `\nPayment: ${paymentLabel}` : ""}\n\nWe'll confirm your total once we've had a look at the job.\n\nThanks for choosing Verdant Lawn Care!`,
+    html: `${logo}<p>Hi ${booking.customerName},</p><p>Your appointment is confirmed:</p><ul><li><strong>Services:</strong> ${booking.services.join(", ")}</li><li><strong>When:</strong> ${when}</li><li><strong>Address:</strong> ${booking.address}</li>${paymentLabel ? `<li><strong>Payment:</strong> ${paymentLabel}</li>` : ""}</ul><p>We'll confirm your total once we've had a look at the job.</p><p>Thanks for choosing Verdant Lawn Care!</p>`,
   });
 }
 

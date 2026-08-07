@@ -31,17 +31,24 @@ export async function POST(req: NextRequest) {
 
   const wasFree = original.amountPaid === 0;
 
-  // Free regenerations mirror /api/design/admin-generate: they're for staff
-  // use only, so require an actual staff session rather than trusting that
-  // the ORIGINAL quote happened to be free. Without this, anyone who obtains
-  // a free quoteRequestId (a shared link, a screenshot, etc.) could re-roll
-  // unlimited free AI-generated batches at the business's real cost.
+  // Free regenerations mirror /api/design/admin-generate: they require an
+  // actual staff session AND that staff member being flagged freeAiDesign by
+  // the owner (see /api/workers) — trusting the ORIGINAL quote's paid status
+  // alone would let anyone who obtains a free quoteRequestId (a shared link,
+  // a screenshot, etc.) re-roll unlimited free batches at real cost, and
+  // would let any staff member use it free even if the owner hasn't granted
+  // them that. Staff without the flag fall through to the normal paid path
+  // below, same as a customer would.
+  let isFree = false;
   if (wasFree) {
     const session = await staffSessionFrom(req);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (session) {
+      const worker = await prisma.worker.findUnique({ where: { email: session.email } });
+      isFree = !!worker?.freeAiDesign;
+    }
   }
 
-  if (!wasFree && !PUBLIC_AI_DESIGN_ENABLED) {
+  if (!isFree && !PUBLIC_AI_DESIGN_ENABLED) {
     return NextResponse.json(
       { error: "AI Design is temporarily unavailable while we improve results. Check back soon!" },
       { status: 503 }
@@ -52,15 +59,15 @@ export async function POST(req: NextRequest) {
     data: {
       customerId: original.customerId,
       tier: original.tier,
-      amountPaid: wasFree ? 0 : REGENERATE_PRICE,
+      amountPaid: isFree ? 0 : REGENERATE_PRICE,
       conceptCount: original.conceptCount,
       photoUrls: original.photoUrls,
       description: original.description,
-      status: wasFree ? "paid" : "awaiting_payment",
+      status: isFree ? "paid" : "awaiting_payment",
     },
   });
 
-  if (wasFree) {
+  if (isFree) {
     return NextResponse.json({ quoteRequestId: fresh.id, checkoutUrl: null });
   }
 
