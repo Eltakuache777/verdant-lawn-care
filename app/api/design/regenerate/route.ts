@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { staffSessionFrom } from "@/lib/auth";
 
 // Lets someone re-roll a batch of concepts from the same photos/description
 // if they didn't like the first outcome. Paid orders (amountPaid > 0) get
@@ -29,6 +30,16 @@ export async function POST(req: NextRequest) {
   }
 
   const wasFree = original.amountPaid === 0;
+
+  // Free regenerations mirror /api/design/admin-generate: they're for staff
+  // use only, so require an actual staff session rather than trusting that
+  // the ORIGINAL quote happened to be free. Without this, anyone who obtains
+  // a free quoteRequestId (a shared link, a screenshot, etc.) could re-roll
+  // unlimited free AI-generated batches at the business's real cost.
+  if (wasFree) {
+    const session = await staffSessionFrom(req);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!wasFree && !PUBLIC_AI_DESIGN_ENABLED) {
     return NextResponse.json(
