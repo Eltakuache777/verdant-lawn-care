@@ -10,7 +10,6 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 const STAFF_PATHS = new Set([
   "/admin",
   "/worker",
-  "/api/bookings",
   "/api/chat/threads",
   "/api/chat/reply",
   "/api/reports",
@@ -45,6 +44,7 @@ export async function middleware(req: NextRequest) {
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT") ||
     (path === "/api/feedback" && m === "GET") ||
+    (path === "/api/bookings" && m === "GET") ||
     (path.startsWith("/api/bookings/") && m === "PATCH") ||
     (path.startsWith("/api/chat/") && m === "DELETE") ||
     (path === "/api/portfolio" && m === "POST") ||

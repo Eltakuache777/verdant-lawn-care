@@ -25,7 +25,13 @@ export default function PortfolioPage() {
 
   const items = selectedService ? allItems.filter((i) => i.service === selectedService) : [];
   const countFor = (name: string) => allItems.filter((i) => i.service === name).length;
-  const coverFor = (name: string) => allItems.find((i) => i.service === name && !isVideoUrl(i.mediaUrl))?.mediaUrl;
+  // Prefer a real photo as the cover, but fall back to a real uploaded
+  // video's first frame rather than the plain placeholder color once
+  // there's any real media at all for that service.
+  const coverFor = (name: string) => {
+    const items = allItems.filter((i) => i.service === name);
+    return items.find((i) => !isVideoUrl(i.mediaUrl))?.mediaUrl ?? items[0]?.mediaUrl;
+  };
 
   // Staff-only upload state
   const [caption, setCaption] = useState("");
@@ -115,6 +121,7 @@ export default function PortfolioPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {services.map((s, i) => {
                 const cover = coverFor(s.name);
+                const coverIsVideo = cover ? isVideoUrl(cover) : false;
                 return (
                   <button
                     key={s.name}
@@ -127,12 +134,33 @@ export default function PortfolioPage() {
                       border: "1px solid var(--border)",
                       overflow: "hidden",
                       padding: 0,
-                      background: cover
-                        ? `url(${cover}) center/cover no-repeat`
-                        : FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+                      background:
+                        cover && !coverIsVideo
+                          ? `url(${cover}) center/cover no-repeat`
+                          : !cover
+                            ? FALLBACK_COLORS[i % FALLBACK_COLORS.length]
+                            : undefined,
                       textAlign: "left",
                     }}
                   >
+                    {cover && coverIsVideo && (
+                      <video
+                        src={cover}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onLoadedMetadata={(e) => {
+                          e.currentTarget.currentTime = 0.5;
+                        }}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    )}
                     <div
                       style={{
                         position: "absolute",

@@ -4,6 +4,7 @@ import AssistantWidget from "./components/AssistantWidget";
 import FeedbackWidget from "./components/FeedbackWidget";
 import NavBar from "./components/NavBar";
 import NotificationPrompt from "./components/NotificationPrompt";
+import InstallPrompt from "./components/InstallPrompt";
 import PwaRegister from "./components/PwaRegister";
 import { LanguageProvider } from "./components/LanguageProvider";
 import { ChatProvider } from "./components/ChatContext";
@@ -60,6 +61,11 @@ export const metadata = {
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Verdant",
   },
 };
 
@@ -131,6 +137,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <AssistantWidget />
                 <FeedbackWidget />
                 <NotificationPrompt />
+                <InstallPrompt />
                 <PwaRegister />
               </FeedbackProvider>
             </AssistantProvider>
