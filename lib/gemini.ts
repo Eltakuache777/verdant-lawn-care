@@ -300,6 +300,53 @@ export async function describeYardVideo(videoPath: string, mimeType: string): Pr
   return text.trim();
 }
 
+// Sanity-checks a materials-catalog picture against its own name/description
+// -- the real-photo lookup tiers (Wikipedia lead image, Commons keyword
+// search) occasionally return something totally unrelated when a plant/
+// material's common name collides with another meaning (e.g. "Cosmos" the
+// flower vs. outer space, "Purple Heart" the plant vs. the military medal,
+// "Karl Foerster" the grass cultivar vs. the person it's named after).
+// Returns null (rather than throwing) on any failure so a bad response
+// doesn't wipe out a possibly-fine image -- caller should leave the item
+// alone in that case, not treat null as a mismatch.
+export async function verifyCatalogImageMatch(
+  imageDataUri: string,
+  name: string,
+  description: string | null
+): Promise<{ matches: boolean; reason: string } | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY isn't configured");
+
+  const inlineMatch = imageDataUri.match(/^data:([^;]+);base64,(.+)$/);
+  if (!inlineMatch) return null; // not a data URI (e.g. an external URL) -- nothing to check here
+
+  try {
+    const model = await resolveVisionModel(apiKey);
+    const body = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `This image is supposed to show a landscaping/gardening item called "${name}"${description ? ` (${description})` : ""}. Does the image actually show that item -- a real, reasonably accurate depiction of it? Answer with only a JSON object: {"matches": true or false, "reason": "one short sentence"}. Say false if the image shows something unrelated (e.g. a person, building, artwork, unrelated object, or a different item entirely), even if it loosely shares a word with the name.`,
+            },
+            { inline_data: { mime_type: inlineMatch[1], data: inlineMatch[2] } },
+          ],
+        },
+      ],
+    };
+    const res = await callGeminiUrl(apiKey, `${GEMINI_BASE}/models/${model}:generateContent`, body);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text: string = data.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    return { matches: !!parsed.matches, reason: typeof parsed.reason === "string" ? parsed.reason : "" };
+  } catch {
+    return null;
+  }
+}
+
 // A short "what's in this picture" materials list for a finished design
 // concept -- shown alongside each photo/video so a customer can see what
 // stone, plants, mulch, etc. it's actually depicting. Runs once per concept
