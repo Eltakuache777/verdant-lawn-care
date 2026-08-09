@@ -33,8 +33,11 @@ export default function FenceEstimatePage() {
   const [showMap, setShowMap] = useState(false);
   const [pointCount, setPointCount] = useState(0);
   const [measuredFt, setMeasuredFt] = useState<number | null>(null);
+  const [savedSegments, setSavedSegments] = useState<number[]>([]);
   const mapRef = useRef<HTMLDivElement>(null);
+  const mapObjRef = useRef<any>(null);
   const polylineRef = useRef<any>(null);
+  const finishedPolylinesRef = useRef<any[]>([]);
 
   async function measureViaMap() {
     if (!address) {
@@ -78,8 +81,21 @@ export default function FenceEstimatePage() {
       zoom: 20,
       mapTypeId: "satellite",
     });
+    mapObjRef.current = map;
+    startNewPolyline();
+
+    map.addListener("click", (e: any) => {
+      const path = polylineRef.current?.getPath();
+      if (!path) return;
+      path.push(e.latLng);
+      setPointCount(path.getLength());
+    });
+  }
+
+  function startNewPolyline() {
+    const google = window.google;
     const polyline = new google.maps.Polyline({
-      map,
+      map: mapObjRef.current,
       path: [],
       editable: true,
       strokeColor: "#34d67f",
@@ -87,15 +103,12 @@ export default function FenceEstimatePage() {
     });
     polylineRef.current = polyline;
     setPointCount(0);
-
-    map.addListener("click", (e: any) => {
-      const path = polyline.getPath();
-      path.push(e.latLng);
-      setPointCount(path.getLength());
-    });
   }
 
-  function finishMeasuring() {
+  // Adds the current run's length to the running list and starts a fresh
+  // one — separate fence runs (front yard, back yard, etc.) don't have to
+  // connect into one continuous line.
+  function addThisSection() {
     const google = window.google;
     const polyline = polylineRef.current;
     if (!polyline || polyline.getPath().getLength() < 2) {
@@ -104,8 +117,28 @@ export default function FenceEstimatePage() {
     }
     const lengthM = google.maps.geometry.spherical.computeLength(polyline.getPath());
     const ft = Math.round(lengthM * 3.28084);
-    setMeasuredFt(ft);
-    setLengthFt(String(ft));
+    polyline.setEditable(false);
+    polyline.setOptions({ strokeOpacity: 0.5 });
+    finishedPolylinesRef.current.push(polyline);
+    setSavedSegments((prev) => [...prev, ft]);
+    setMapError(null);
+    startNewPolyline();
+  }
+
+  function removeSection(index: number) {
+    finishedPolylinesRef.current[index]?.setMap(null);
+    finishedPolylinesRef.current.splice(index, 1);
+    setSavedSegments((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function finishMeasuring() {
+    const total = savedSegments.reduce((sum, ft) => sum + ft, 0);
+    if (total <= 0) {
+      setMapError(t("clickAtLeast2Fence"));
+      return;
+    }
+    setMeasuredFt(total);
+    setLengthFt(String(total));
   }
 
   function clearLine() {
@@ -160,14 +193,50 @@ export default function FenceEstimatePage() {
                   ref={mapRef}
                   style={{ height: 400, width: "100%", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 10 }}
                 />
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button type="button" onClick={finishMeasuring} disabled={pointCount < 2}>
-                    {t("finishMeasuring")}
+                <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                  <button type="button" onClick={addThisSection} disabled={pointCount < 2}>
+                    {savedSegments.length === 0 ? t("addThisAreaBtn") : t("addAnotherSectionBtn")}
                   </button>
                   <button type="button" onClick={clearLine} disabled={pointCount === 0}>
                     {t("clear")}
                   </button>
                 </div>
+
+                {savedSegments.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    {savedSegments.map((ft, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 10px",
+                          border: "1px solid var(--border)",
+                          borderRadius: 6,
+                          marginBottom: 6,
+                          fontSize: 13,
+                        }}
+                      >
+                        <span>{t("sectionLine", { n: i + 1, ft })}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSection(i)}
+                          aria-label={t("removeAreaAria")}
+                          style={{ background: "transparent", color: "var(--text-muted)", padding: "0 4px", fontWeight: 700 }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <p className="accent" style={{ fontWeight: 700, margin: "8px 0" }}>
+                      {t("totalFtSoFar", { ft: savedSegments.reduce((s, v) => s + v, 0) })}
+                    </p>
+                    <button type="button" onClick={finishMeasuring}>
+                      {t("doneMeasuringBtn")}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {measuredFt && (

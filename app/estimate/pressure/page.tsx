@@ -27,9 +27,11 @@ export default function PressureEstimatePage() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [activeSurface, setActiveSurface] = useState<string | null>(null);
   const [pointCount, setPointCount] = useState(0);
+  const [activeSurfaceAreas, setActiveSurfaceAreas] = useState<number[]>([]);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObjRef = useRef<any>(null);
   const polygonRef = useRef<any>(null);
+  const finishedPolygonsRef = useRef<any[]>([]);
   const locationRef = useRef<{ lat: number; lng: number } | null>(null);
 
   function toggleSurface(key: string) {
@@ -66,6 +68,8 @@ export default function PressureEstimatePage() {
       // Setting activeSurface mounts the map div; the effect below creates the
       // actual map once that div exists (can't create it here — it isn't in the DOM yet).
       setPointCount(0);
+      setActiveSurfaceAreas([]);
+      finishedPolygonsRef.current = [];
       setActiveSurface(key);
     } catch {
       setMapError(t("somethingWentWrong"));
@@ -84,9 +88,20 @@ export default function PressureEstimatePage() {
       mapTypeId: "satellite",
     });
     mapObjRef.current = map;
+    startNewPolygon();
 
+    map.addListener("click", (e: any) => {
+      const path = polygonRef.current?.getPath();
+      if (!path) return;
+      path.push(e.latLng);
+      setPointCount(path.getLength());
+    });
+  }, [activeSurface]);
+
+  function startNewPolygon() {
+    const google = window.google;
     const polygon = new google.maps.Polygon({
-      map,
+      map: mapObjRef.current,
       path: [],
       editable: true,
       fillColor: "#34d67f",
@@ -95,24 +110,41 @@ export default function PressureEstimatePage() {
       strokeWeight: 2,
     });
     polygonRef.current = polygon;
+    setPointCount(0);
+  }
 
-    map.addListener("click", (e: any) => {
-      const path = polygon.getPath();
-      path.push(e.latLng);
-      setPointCount(path.getLength());
-    });
-  }, [activeSurface]);
-
-  function finishMeasuring() {
+  // Adds the current shape's area to this surface's running list and starts
+  // a fresh shape — e.g. a driveway split into two disconnected slabs.
+  function addThisArea() {
     const google = window.google;
     const polygon = polygonRef.current;
-    if (!polygon || polygon.getPath().getLength() < 3 || !activeSurface) {
+    if (!polygon || polygon.getPath().getLength() < 3) {
       setMapError(t("clickAtLeast3Surface"));
       return;
     }
     const areaSqM = google.maps.geometry.spherical.computeArea(polygon.getPath());
     const areaSqFt = Math.round(areaSqM * 10.7639);
-    setSqft((prev) => ({ ...prev, [activeSurface]: String(areaSqFt) }));
+    polygon.setEditable(false);
+    polygon.setOptions({ fillOpacity: 0.15, strokeOpacity: 0.6 });
+    finishedPolygonsRef.current.push(polygon);
+    setActiveSurfaceAreas((prev) => [...prev, areaSqFt]);
+    setMapError(null);
+    startNewPolygon();
+  }
+
+  function removeActiveArea(index: number) {
+    finishedPolygonsRef.current[index]?.setMap(null);
+    finishedPolygonsRef.current.splice(index, 1);
+    setActiveSurfaceAreas((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function finishMeasuring() {
+    const total = activeSurfaceAreas.reduce((sum, a) => sum + a, 0);
+    if (total <= 0 || !activeSurface) {
+      setMapError(t("clickAtLeast3Surface"));
+      return;
+    }
+    setSqft((prev) => ({ ...prev, [activeSurface]: String(total) }));
     setSelected((prev) => ({ ...prev, [activeSurface]: true }));
     setActiveSurface(null);
   }
@@ -208,14 +240,50 @@ export default function PressureEstimatePage() {
                 ref={mapRef}
                 style={{ height: 400, width: "100%", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 10 }}
               />
-              <div style={{ display: "flex", gap: 10 }}>
-                <button type="button" onClick={finishMeasuring} disabled={pointCount < 3}>
-                  {t("finishMeasuring")}
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <button type="button" onClick={addThisArea} disabled={pointCount < 3}>
+                  {activeSurfaceAreas.length === 0 ? t("addThisAreaBtn") : t("addAnotherAreaBtn")}
                 </button>
                 <button type="button" onClick={clearActivePolygon} disabled={pointCount === 0}>
                   {t("clear")}
                 </button>
               </div>
+
+              {activeSurfaceAreas.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  {activeSurfaceAreas.map((sqft, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "6px 10px",
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                        marginBottom: 6,
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>{t("areaLine", { n: i + 1, sqft: sqft.toLocaleString() })}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeActiveArea(i)}
+                        aria-label={t("removeAreaAria")}
+                        style={{ background: "transparent", color: "var(--text-muted)", padding: "0 4px", fontWeight: 700 }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <p className="accent" style={{ fontWeight: 700, margin: "8px 0" }}>
+                    {t("totalSqftSoFar", { sqft: activeSurfaceAreas.reduce((s, a) => s + a, 0).toLocaleString() })}
+                  </p>
+                  <button type="button" onClick={finishMeasuring}>
+                    {t("doneMeasuringBtn")}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
