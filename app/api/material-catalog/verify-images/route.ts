@@ -7,18 +7,27 @@ import { verifyCatalogImageMatch } from "@/lib/gemini";
 // can be triggered from a local script without needing GEMINI_API_KEY (or a
 // staff login session) on the machine running the script; the actual Gemini
 // call happens here, server-side, using Render's already-configured key.
-// Runs synchronously (same reasoning as /api/quote/generate: fine on
-// Render's persistent server, would need a background job on a host with
-// hard request timeouts).
+//
+// Paginated via ?offset=N (over the full "NOT null" set, ordered by name)
+// rather than one unbounded sweep -- the catalog grew past what a single
+// request comfortably finishes within a client's timeout, so the caller
+// pages through with offset += processed until processed === 0.
+const BATCH_SIZE = 150;
+
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-internal-key");
   if (!process.env.SESSION_SECRET || key !== process.env.SESSION_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const offset = parseInt(req.nextUrl.searchParams.get("offset") ?? "0", 10) || 0;
+
+  const total = await prisma.materialCatalogItem.count({ where: { NOT: { imageUrl: null } } });
   const items = await prisma.materialCatalogItem.findMany({
     where: { NOT: { imageUrl: null } },
     orderBy: { name: "asc" },
+    skip: offset,
+    take: BATCH_SIZE,
   });
 
   let ok = 0;
@@ -42,5 +51,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ checked: items.length, ok, cleared, skipped, mismatches });
+  const nextOffset = offset + items.length;
+  return NextResponse.json({
+    total,
+    offset,
+    processed: items.length,
+    nextOffset,
+    done: nextOffset >= total,
+    ok,
+    cleared,
+    skipped,
+    mismatches,
+  });
 }
