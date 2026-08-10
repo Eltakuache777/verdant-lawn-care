@@ -12,7 +12,7 @@ import { verifyCatalogImageMatch } from "@/lib/gemini";
 // rather than one unbounded sweep -- the catalog grew past what a single
 // request comfortably finishes within a client's timeout, so the caller
 // pages through with offset += processed until processed === 0.
-const BATCH_SIZE = 150;
+const BATCH_SIZE = 40;
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-internal-key");
