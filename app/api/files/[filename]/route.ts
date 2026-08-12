@@ -21,6 +21,11 @@ const CONTENT_TYPES: Record<string, string> = {
   ".mov": "video/quicktime",
   ".webm": "video/webm",
   ".3gp": "video/3gpp",
+  ".weba": "audio/webm",
+  ".m4a": "audio/mp4",
+  ".oga": "audio/ogg",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
 };
 
 export async function GET(_req: NextRequest, { params }: { params: { filename: string } }) {

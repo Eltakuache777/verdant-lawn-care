@@ -4,11 +4,15 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "./LanguageProvider";
 import { useChat } from "./ChatContext";
 import FilePreviewStrip from "./FilePreviewStrip";
+import VoiceRecorderButton from "./VoiceRecorderButton";
 
 type Msg = { id: string; sender: string; body: string; attachmentUrls?: string[]; createdAt: string };
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
+}
+function isAudioUrl(url: string) {
+  return /\.(weba|m4a|oga|mp3|wav)$/i.test(url);
 }
 
 export default function ChatWidget() {
@@ -116,6 +120,40 @@ export default function ChatWidget() {
     }
   }
 
+  async function sendVoiceMessage(blob: Blob, mimeType: string) {
+    setSending(true);
+    try {
+      const ext = mimeType.includes("mp4") ? "m4a" : "webm";
+      const formData = new FormData();
+      formData.append("files", new File([blob], `voice.${ext}`, { type: mimeType }));
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        alert(err.error ?? t("micNotAvailable"));
+        return;
+      }
+      const { urls } = await uploadRes.json();
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerEmail: email,
+          customerName: name,
+          body: t("voiceMessageLabel"),
+          attachmentUrls: urls,
+        }),
+      });
+      if (res.ok) {
+        loadMessages();
+      } else {
+        const err = await res.json();
+        alert(err.error ?? t("couldNotSendMessage"));
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (pathname?.startsWith("/admin") || pathname?.startsWith("/worker")) return null;
 
   return (
@@ -207,7 +245,9 @@ export default function ChatWidget() {
                     {m.attachmentUrls && m.attachmentUrls.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                         {m.attachmentUrls.map((url) =>
-                          isVideoUrl(url) ? (
+                          isAudioUrl(url) ? (
+                            <audio key={url} src={url} controls style={{ height: 36, maxWidth: 220 }} />
+                          ) : isVideoUrl(url) ? (
                             <video key={url} src={url} controls style={{ width: 160, borderRadius: 6 }} />
                           ) : (
                             <a key={url} href={url} target="_blank" rel="noopener noreferrer">
@@ -297,6 +337,12 @@ export default function ChatWidget() {
                   >
                     📎
                   </button>
+                  <VoiceRecorderButton
+                    onRecorded={sendVoiceMessage}
+                    disabled={sending}
+                    recordingAria={t("voiceRecordAria")}
+                    stopAria={t("voiceStopAria")}
+                  />
                   <button type="submit" disabled={sending} style={{ padding: "10px 16px" }}>
                     {t("chatSend")}
                   </button>

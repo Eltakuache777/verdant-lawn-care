@@ -21,6 +21,9 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25MB
 // 75MB comfortably covers a 20-30 second phone clip while leaving real
 // headroom. Raise this only alongside a real RAM increase on the hosting plan.
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024; // 75MB
+// Voice messages are short (a couple minutes at most, recording is capped
+// client-side) — 10MB is generous headroom for that.
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_FILES = 15;
 
 // Broad, permissive checks instead of an exact mime-type whitelist — phones report a
@@ -33,11 +36,27 @@ function isImage(mimeType: string) {
 function isVideo(mimeType: string) {
   return mimeType.startsWith("video/");
 }
+function isAudio(mimeType: string) {
+  return mimeType.startsWith("audio/");
+}
 function isHeic(mimeType: string, filename: string) {
   return mimeType === "image/heic" || mimeType === "image/heif" || /\.hei[cf]$/i.test(filename);
 }
 
+// Voice recordings always get one of these extensions regardless of the
+// browser's exact container (webm/ogg/mp4) — deliberately distinct from
+// video extensions (.mp4/.mov/.webm) so isVideoUrl() checks elsewhere never
+// mistake a voice message for a video clip and try to render it as one.
+function audioExtensionFor(mimeType: string): string {
+  if (mimeType.includes("mp4") || mimeType.includes("m4a")) return ".m4a";
+  if (mimeType.includes("ogg")) return ".oga";
+  if (mimeType.includes("wav")) return ".wav";
+  if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return ".mp3";
+  return ".weba"; // audio/webm — the common case (Chrome/Firefox MediaRecorder default)
+}
+
 function extensionFor(mimeType: string, filename: string): string {
+  if (isAudio(mimeType)) return audioExtensionFor(mimeType);
   const fromName = path.extname(filename);
   if (fromName) return fromName.toLowerCase();
   const guess: Record<string, string> = {
@@ -69,15 +88,15 @@ export async function POST(req: NextRequest) {
 
   const urls: string[] = [];
   for (const file of files) {
-    const maxBytes = isVideo(file.type) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    const maxBytes = isVideo(file.type) ? MAX_VIDEO_BYTES : isAudio(file.type) ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
     if (file.size > maxBytes) {
       return NextResponse.json(
         { error: `${file.name} is too large (max ${Math.round(maxBytes / (1024 * 1024))}MB)` },
         { status: 400 }
       );
     }
-    if (!isImage(file.type) && !isVideo(file.type) && !isHeic(file.type, file.name)) {
-      return NextResponse.json({ error: `${file.name} isn't a supported photo or video` }, { status: 400 });
+    if (!isImage(file.type) && !isVideo(file.type) && !isAudio(file.type) && !isHeic(file.type, file.name)) {
+      return NextResponse.json({ error: `${file.name} isn't a supported photo, video, or voice message` }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

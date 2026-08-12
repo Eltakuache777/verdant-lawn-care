@@ -5,6 +5,7 @@ import { DESIGN_TIERS } from "@/lib/designTiers";
 import { RECURRING_FREQUENCIES, frequencyLabel } from "@/lib/recurringFrequency";
 import PasswordInput from "./PasswordInput";
 import FilePreviewStrip from "./FilePreviewStrip";
+import VoiceRecorderButton from "./VoiceRecorderButton";
 
 type ServiceRow = { name: string; basePrice: number };
 type MaterialRow = { name: string; unit: string; price: number };
@@ -99,6 +100,9 @@ type FeedbackRow = { id: string; message: string; email: string | null; page: st
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
+}
+function isAudioUrl(url: string) {
+  return /\.(weba|m4a|oga|mp3|wav)$/i.test(url);
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -222,6 +226,10 @@ export default function AdminShell({
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadsError, setThreadsError] = useState<string | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const selectedEmailRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedEmailRef.current = selectedEmail;
+  }, [selectedEmail]);
   const [selectedName, setSelectedName] = useState("");
   const [thread, setThread] = useState<ChatMsg[]>([]);
   const [reply, setReply] = useState("");
@@ -373,7 +381,18 @@ export default function AdminShell({
       .catch(() => {});
 
     const interval = setInterval(() => loadBookings(true), 25000);
-    return () => clearInterval(interval);
+    // Messages only loaded once on mount otherwise -- a brand-new customer
+    // conversation (or a reply) that arrives while the admin panel is
+    // already open wouldn't show up until a full page reload, even though
+    // the push notification for it fired correctly.
+    const threadsInterval = setInterval(() => {
+      loadThreads();
+      if (selectedEmailRef.current) loadThread(selectedEmailRef.current);
+    }, 25000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(threadsInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -866,6 +885,39 @@ export default function AdminShell({
     }
   }
 
+  async function sendVoiceReply(blob: Blob, mimeType: string) {
+    if (!selectedEmail) return;
+    setSendingReply(true);
+    try {
+      const ext = mimeType.includes("mp4") ? "m4a" : "webm";
+      const formData = new FormData();
+      formData.append("files", new File([blob], `voice.${ext}`, { type: mimeType }));
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        alert(err.error ?? "Could not upload the voice message.");
+        return;
+      }
+      const { urls } = await uploadRes.json();
+      const res = await fetch("/api/chat/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerEmail: selectedEmail,
+          customerName: selectedName,
+          body: "🎤 Voice message",
+          attachmentUrls: urls,
+        }),
+      });
+      if (res.ok) {
+        loadThread(selectedEmail);
+        loadThreads();
+      }
+    } finally {
+      setSendingReply(false);
+    }
+  }
+
   async function deleteMessage(id: string) {
     if (!confirm("Delete this message for everyone?")) return;
     setThread((prev) => prev.filter((m) => m.id !== id));
@@ -1307,7 +1359,9 @@ export default function AdminShell({
                         {m.attachmentUrls && m.attachmentUrls.length > 0 && (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
                             {m.attachmentUrls.map((url) =>
-                              isVideoUrl(url) ? (
+                              isAudioUrl(url) ? (
+                                <audio key={url} src={url} controls style={{ height: 32, maxWidth: 200 }} />
+                              ) : isVideoUrl(url) ? (
                                 <video key={url} src={url} controls style={{ width: 140, borderRadius: 4 }} />
                               ) : (
                                 <a key={url} href={url} target="_blank" rel="noopener noreferrer">
@@ -1389,6 +1443,12 @@ export default function AdminShell({
                       >
                         📎
                       </button>
+                      <VoiceRecorderButton
+                        onRecorded={sendVoiceReply}
+                        disabled={sendingReply}
+                        recordingAria="Record a voice message"
+                        stopAria="Stop recording and send"
+                      />
                       <button type="submit" disabled={sendingReply}>
                         Send
                       </button>
