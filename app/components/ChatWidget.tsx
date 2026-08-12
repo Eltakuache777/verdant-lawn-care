@@ -21,7 +21,10 @@ export default function ChatWidget() {
   const { open, setOpen } = useChat();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [identified, setIdentified] = useState(false);
+  // "checking" | "loggedIn" | "loggedOut" — chat now requires a real account
+  // (not just a typed-in name/email) so staff can always reply and the
+  // conversation survives across devices/sessions.
+  const [authState, setAuthState] = useState<"checking" | "loggedIn" | "loggedOut">("checking");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -32,14 +35,21 @@ export default function ChatWidget() {
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const storedName = localStorage.getItem("chatName");
-    const storedEmail = localStorage.getItem("chatEmail");
-    if (storedName && storedEmail) {
-      setName(storedName);
-      setEmail(storedEmail);
-      setIdentified(true);
-    }
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((session) => {
+        if (session?.loggedIn && session.email) {
+          setName(session.name || session.email);
+          setEmail(session.email);
+          setAuthState("loggedIn");
+        } else {
+          setAuthState("loggedOut");
+        }
+      })
+      .catch(() => setAuthState("loggedOut"));
   }, []);
+
+  const identified = authState === "loggedIn";
 
   useEffect(() => {
     if (!identified || !open) return;
@@ -67,14 +77,6 @@ export default function ChatWidget() {
     if (res.ok) {
       setMessages(await res.json());
     }
-  }
-
-  function startChat(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name || !email) return;
-    localStorage.setItem("chatName", name);
-    localStorage.setItem("chatEmail", email);
-    setIdentified(true);
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -193,22 +195,23 @@ export default function ChatWidget() {
             </button>
           </div>
 
-          {!identified ? (
-            <form onSubmit={startChat} style={{ padding: 20, maxWidth: 420, width: "100%", margin: "0 auto" }}>
-              <label style={{ fontSize: 13 }}>{t("nameLabel")}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required style={{ marginBottom: 10 }} />
-              <label style={{ fontSize: 13 }}>{t("emailLabel")}</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                style={{ marginBottom: 10 }}
-              />
-              <button type="submit" style={{ width: "100%" }}>
-                {t("chatStartBtn")}
-              </button>
-            </form>
+          {authState === "checking" ? (
+            <p style={{ padding: 20, color: "var(--text-muted)" }}>{t("checkingLoginStatus")}</p>
+          ) : authState === "loggedOut" ? (
+            <div style={{ padding: 20, maxWidth: 420, width: "100%", margin: "0 auto" }}>
+              <h3 style={{ marginTop: 0 }}>{t("chatLoginRequiredTitle")}</h3>
+              <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t("chatLoginRequiredBody")}</p>
+              <a href="/login?mode=signup" style={{ display: "block", marginBottom: 10 }}>
+                <button type="button" style={{ width: "100%" }}>
+                  {t("navSignUp")}
+                </button>
+              </a>
+              <a href="/login">
+                <button type="button" style={{ width: "100%", background: "transparent", border: "1px solid var(--border)", color: "var(--text)" }}>
+                  {t("navLogIn")}
+                </button>
+              </a>
+            </div>
           ) : (
             <>
               <div
