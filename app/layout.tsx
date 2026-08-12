@@ -1,4 +1,5 @@
 import "./globals.css";
+import Script from "next/script";
 import ChatWidget from "./components/ChatWidget";
 import AssistantWidget from "./components/AssistantWidget";
 import FeedbackWidget from "./components/FeedbackWidget";
@@ -14,6 +15,10 @@ import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 
 const SITE_URL = "https://verdantlawn.care";
+// A GA4 Measurement ID is meant to be public (it's embedded in every
+// tracked page's source, visible to anyone), so this lives directly in
+// code rather than needing a Render env var.
+const GA_MEASUREMENT_ID = "G-FH1BPDR3QG";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -134,6 +139,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
+        <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
