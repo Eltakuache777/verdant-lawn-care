@@ -288,6 +288,7 @@ model CanvassTerritory {
   id                  String         @id @default(cuid())
   name                String?
   polygon             Json // [{lat,lng}, ...] the drawn boundary
+  services            String[]       @default([]) // which Service names this canvassing run is pitching
   assignedWorkerEmail String?
   createdByEmail      String?
   createdAt           DateTime       @default(now())
@@ -315,6 +316,7 @@ model CanvassHouse {
   lng                 Float
   address             String
   status              CanvassStatus         @default(not_knocked)
+  services            String[]              @default([]) // defaults to the territory's services, editable per house
   notes               String?
   assignedWorkerEmail String?
   updatedAt           DateTime              @updatedAt

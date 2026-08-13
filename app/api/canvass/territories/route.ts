@@ -18,6 +18,7 @@ const BodySchema = z.object({
   name: z.string().optional(),
   polygon: z.array(PointSchema).min(3),
   assignedWorkerEmail: z.string().email().optional(),
+  services: z.array(z.string()).optional(),
 });
 
 // Draws a territory and immediately auto-fills it with every real address
@@ -42,10 +43,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No addresses found in that area — try drawing a larger area." }, { status: 400 });
   }
 
+  const services = parsed.data.services ?? [];
   const territory = await prisma.canvassTerritory.create({
     data: {
       name: parsed.data.name,
       polygon: parsed.data.polygon,
+      services,
       assignedWorkerEmail: parsed.data.assignedWorkerEmail,
       createdByEmail: session.email,
       houses: {
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest) {
           lat: h.lat,
           lng: h.lng,
           address: h.address,
+          services,
           assignedWorkerEmail: parsed.data.assignedWorkerEmail,
         })),
       },

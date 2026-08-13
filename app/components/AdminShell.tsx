@@ -1875,7 +1875,10 @@ export default function AdminShell({
         )}
 
         {view === "canvassing" && (
-          <CanvassView workers={workers.map((w) => ({ email: w.email, name: w.name }))} />
+          <CanvassView
+            workers={workers.map((w) => ({ email: w.email, name: w.name }))}
+            services={services.map((s) => s.name)}
+          />
         )}
 
         {view === "customers" && (

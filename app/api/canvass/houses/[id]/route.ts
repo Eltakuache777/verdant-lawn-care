@@ -18,6 +18,7 @@ const PatchSchema = z.object({
   status: z.enum(STATUSES).optional(),
   notes: z.string().max(1000).optional(),
   assignedWorkerEmail: z.string().email().nullable().optional(),
+  services: z.array(z.string()).optional(),
 });
 
 // Staff-only (see middleware.ts). Every status change is logged as its own
@@ -39,6 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
       ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
       ...(parsed.data.assignedWorkerEmail !== undefined ? { assignedWorkerEmail: parsed.data.assignedWorkerEmail } : {}),
+      ...(parsed.data.services !== undefined ? { services: parsed.data.services } : {}),
       updatedByEmail: session.email,
     },
   });

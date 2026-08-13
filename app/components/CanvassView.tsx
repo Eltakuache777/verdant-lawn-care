@@ -19,12 +19,14 @@ type House = {
   lng: number;
   address: string;
   status: CanvassStatus;
+  services: string[];
   notes: string | null;
   assignedWorkerEmail: string | null;
 };
 type Territory = {
   id: string;
   name: string | null;
+  services: string[];
   assignedWorkerEmail: string | null;
   houses: House[];
 };
@@ -38,6 +40,10 @@ type LeaderboardRow = {
   conversionRate: number;
 };
 type WorkerOption = { email: string; name: string | null };
+
+function toggleInList(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
 
 const STATUS_LABELS: Record<CanvassStatus, string> = {
   not_knocked: "Not Knocked",
@@ -64,7 +70,7 @@ const STATUS_COLORS: Record<CanvassStatus, string> = {
 // anyone's searched a specific address.
 const DEFAULT_CENTER = { lat: 30.2672, lng: -97.7431 };
 
-export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
+export default function CanvassView({ workers, services }: { workers: WorkerOption[]; services: string[] }) {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
@@ -78,6 +84,7 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
   const [filling, setFilling] = useState(false);
   const [territoryName, setTerritoryName] = useState("");
   const [territoryWorker, setTerritoryWorker] = useState("");
+  const [territoryServices, setTerritoryServices] = useState<string[]>([]);
 
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [savingHouse, setSavingHouse] = useState(false);
@@ -216,6 +223,7 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
     setPointCount(0);
     setTerritoryName("");
     setTerritoryWorker("");
+    setTerritoryServices([]);
   }
 
   function clearDrawing() {
@@ -246,6 +254,7 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
           name: territoryName.trim() || undefined,
           polygon: points,
           assignedWorkerEmail: territoryWorker || undefined,
+          services: territoryServices,
         }),
       });
       const data = await res.json();
@@ -277,6 +286,7 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
           status: selectedHouse.status,
           notes: selectedHouse.notes ?? "",
           assignedWorkerEmail: selectedHouse.assignedWorkerEmail || null,
+          services: selectedHouse.services,
         }),
       });
       if (res.ok) {
@@ -398,6 +408,24 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
                 ))}
               </select>
             </div>
+            {services.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 6px" }}>Services this run is pitching (optional, pick any number)</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {services.map((s) => (
+                    <label key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: "normal", fontSize: 14 }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto", margin: 0 }}
+                        checked={territoryServices.includes(s)}
+                        onChange={() => setTerritoryServices((prev) => toggleInList(prev, s))}
+                      />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
               <button type="button" onClick={fillHouses} disabled={pointCount < 3 || filling}>
                 {filling ? "Filling houses..." : "Fill houses in this area"}
@@ -425,6 +453,7 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
                       {t.assignedWorkerEmail
                         ? ` — assigned to ${workers.find((w) => w.email === t.assignedWorkerEmail)?.name || t.assignedWorkerEmail}`
                         : ""}
+                      {t.services.length > 0 ? ` — ${t.services.join(", ")}` : ""}
                     </p>
                   </div>
                   <button
@@ -499,6 +528,26 @@ export default function CanvassView({ workers }: { workers: WorkerOption[] }) {
                 </option>
               ))}
             </select>
+            {services.length > 0 && (
+              <>
+                <label style={{ fontSize: 13 }}>Services (pick any number)</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+                  {services.map((s) => (
+                    <label key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: "normal", fontSize: 14 }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto", margin: 0 }}
+                        checked={selectedHouse.services.includes(s)}
+                        onChange={() =>
+                          setSelectedHouse({ ...selectedHouse, services: toggleInList(selectedHouse.services, s) })
+                        }
+                      />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
             <label style={{ fontSize: 13 }}>Notes</label>
             <textarea
               value={selectedHouse.notes ?? ""}
