@@ -33,9 +33,15 @@ export async function fetchHousesInPolygon(polygon: LatLng[]): Promise<FetchedHo
     out center;
   `;
 
+  // Overpass's public instance 406s requests without a descriptive
+  // User-Agent (Node's fetch doesn't send one by default, unlike curl or a
+  // browser) -- their own usage guidelines ask for exactly this.
   const res = await fetch(OVERPASS_URL, {
     method: "POST",
-    headers: { "Content-Type": "text/plain" },
+    headers: {
+      "Content-Type": "text/plain",
+      "User-Agent": "VerdantLawnCare-CanvassBot/1.0 (contact: verdantlawn.care)",
+    },
     body: query,
     signal: AbortSignal.timeout(30000),
   });
