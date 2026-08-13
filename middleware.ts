@@ -41,6 +41,7 @@ export async function middleware(req: NextRequest) {
     path.startsWith("/api/workers/") ||
     path.startsWith("/api/customers/") ||
     path.startsWith("/api/staff-chat/threads/") ||
+    path.startsWith("/api/canvass/") ||
     (path === "/api/services" && m === "PUT") ||
     (path === "/api/materials" && m === "PUT") ||
     (path === "/api/feedback" && m === "GET") ||
@@ -98,5 +99,6 @@ export const config = {
     "/api/reviews/:id",
     "/api/material-catalog",
     "/api/material-catalog/:id",
+    "/api/canvass/:path*",
   ],
 };

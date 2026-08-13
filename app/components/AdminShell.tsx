@@ -6,6 +6,7 @@ import { RECURRING_FREQUENCIES, frequencyLabel } from "@/lib/recurringFrequency"
 import PasswordInput from "./PasswordInput";
 import FilePreviewStrip from "./FilePreviewStrip";
 import VoiceRecorderButton from "./VoiceRecorderButton";
+import CanvassView from "./CanvassView";
 
 type ServiceRow = { name: string; basePrice: number };
 type MaterialRow = { name: string; unit: string; price: number };
@@ -85,7 +86,7 @@ type CustomerDetail = CustomerRow & {
     amountPaid: number | null;
   }[];
 };
-type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team" | "feedback";
+type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team" | "feedback" | "canvassing";
 type TeamThread = {
   id: string;
   isGroup: boolean;
@@ -117,6 +118,7 @@ const RAIL_ITEMS: { key: View; icon: string; label: string }[] = [
   { key: "messages", icon: "💬", label: "Messages" },
   { key: "team", icon: "🗨️", label: "Team" },
   { key: "customers", icon: "👤", label: "Customers" },
+  { key: "canvassing", icon: "🚪", label: "Canvassing" },
   { key: "prices", icon: "💲", label: "Prices" },
   { key: "reports", icon: "📊", label: "Reports" },
   { key: "design", icon: "🎨", label: "Design" },
@@ -1870,6 +1872,10 @@ export default function AdminShell({
               )}
             </div>
           </div>
+        )}
+
+        {view === "canvassing" && (
+          <CanvassView workers={workers.map((w) => ({ email: w.email, name: w.name }))} />
         )}
 
         {view === "customers" && (

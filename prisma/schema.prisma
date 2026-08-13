@@ -280,3 +280,62 @@ model PushSubscription {
 
   @@index([email])
 }
+
+// Door-to-door canvassing: a staff member draws a polygon on the map and it
+// gets auto-filled with the real houses inside it (via OpenStreetMap), one
+// CanvassHouse per address, rather than staff hand-dropping every pin.
+model CanvassTerritory {
+  id                  String         @id @default(cuid())
+  name                String?
+  polygon             Json // [{lat,lng}, ...] the drawn boundary
+  assignedWorkerEmail String?
+  createdByEmail      String?
+  createdAt           DateTime       @default(now())
+  houses              CanvassHouse[]
+}
+
+// Every value here mirrors RepGrid's own status pipeline so staff coming
+// from that mental model (or training material) map onto it directly.
+enum CanvassStatus {
+  not_knocked
+  booked
+  completed
+  denied
+  warm_lead
+  no_answer
+  revisit_am
+  revisit_pm
+}
+
+model CanvassHouse {
+  id                  String                @id @default(cuid())
+  territoryId         String
+  territory           CanvassTerritory      @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  lat                 Float
+  lng                 Float
+  address             String
+  status              CanvassStatus         @default(not_knocked)
+  notes               String?
+  assignedWorkerEmail String?
+  updatedAt           DateTime              @updatedAt
+  updatedByEmail      String?
+  bookingId           String? // set if "Booked" led to a real Booking record
+  events              CanvassStatusEvent[]
+
+  @@index([territoryId])
+}
+
+// One row per status change -- the actual history RepGrid's "timestamped
+// and attributed" status tracking (and the leaderboard) is built from.
+model CanvassStatusEvent {
+  id          String        @id @default(cuid())
+  houseId     String
+  house       CanvassHouse  @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  status      CanvassStatus
+  workerEmail String
+  workerName  String?
+  createdAt   DateTime      @default(now())
+
+  @@index([houseId])
+  @@index([workerEmail])
+}
