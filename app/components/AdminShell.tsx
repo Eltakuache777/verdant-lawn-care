@@ -140,6 +140,8 @@ export default function AdminShell({
   const [newBookingCount, setNewBookingCount] = useState(0);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const [enablingNotifs, setEnablingNotifs] = useState(false);
+  const [calendarLink, setCalendarLink] = useState<string | null>(null);
+  const [calendarLinkCopied, setCalendarLinkCopied] = useState(false);
 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -339,6 +341,17 @@ export default function AdminShell({
     }
   }
 
+  async function copyCalendarLink() {
+    if (!calendarLink) return;
+    try {
+      await navigator.clipboard.writeText(calendarLink);
+      setCalendarLinkCopied(true);
+      setTimeout(() => setCalendarLinkCopied(false), 2000);
+    } catch {
+      prompt("Copy your calendar link:", calendarLink);
+    }
+  }
+
   useEffect(() => {
     lastSeenBookingRef.current = localStorage.getItem(lastSeenStorageKey);
     if (lastSeenBookingRef.current) seenAnyBookingsRef.current = true;
@@ -368,6 +381,10 @@ export default function AdminShell({
     loadCustomers();
     loadTeamThreads();
     loadFeedback();
+    fetch("/api/calendar/my-link")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setCalendarLink(data.url))
+      .catch(() => {});
     fetch("/api/design/history")
       .then((r) => r.json())
       .then((data) => Array.isArray(data) && setMyDesignHistory(data));
@@ -1074,6 +1091,16 @@ export default function AdminShell({
                 {enablingNotifs ? "Enabling…" : "🔔 Enable notifications"}
               </button>
             ) : null}
+            {calendarLink && (
+              <button
+                type="button"
+                onClick={copyCalendarLink}
+                title="Subscribe in your phone's Calendar app (Apple, Google, Outlook) to see the schedule there automatically"
+                style={{ background: "transparent", color: "var(--text-muted)", fontWeight: 600, fontSize: 12, padding: "4px 8px" }}
+              >
+                {calendarLinkCopied ? "✓ Copied" : "📅 Copy calendar link"}
+              </button>
+            )}
             <button
               type="button"
               onClick={logOut}

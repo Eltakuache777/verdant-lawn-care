@@ -20,6 +20,7 @@ const STAFF_PATHS = new Set([
   "/api/customers",
   "/api/recurring/run-due",
   "/api/staff-chat/threads",
+  "/api/calendar/my-link",
 ]);
 
 // Just needs to be logged in as someone — used for the customer self-service
@@ -100,5 +101,6 @@ export const config = {
     "/api/material-catalog",
     "/api/material-catalog/:id",
     "/api/canvass/:path*",
+    "/api/calendar/my-link",
   ],
 };
