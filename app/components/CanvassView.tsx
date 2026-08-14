@@ -154,11 +154,11 @@ export default function CanvassView({ workers, services }: { workers: WorkerOpti
           title: house.address,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
-            scale: 7,
+            scale: 13, // bigger tap target -- a 7px dot was hard to hit accurately on a phone screen
             fillColor: STATUS_COLORS[house.status],
             fillOpacity: 1,
-            strokeColor: "#0a160f",
-            strokeWeight: 1.5,
+            strokeColor: "#ffffff",
+            strokeWeight: 2.5,
           },
         });
         marker.addListener("click", () => setSelectedHouse(house));
