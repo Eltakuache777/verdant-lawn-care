@@ -12,7 +12,12 @@ function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
 }
 function isAudioUrl(url: string) {
-  return /\.(weba|m4a|oga|mp3|wav)$/i.test(url);
+  // Extension check covers local-disk URLs (we control the extension
+  // there); the /voice/ folder check covers Cloudinary URLs, where
+  // Cloudinary rewrites the extension to whatever it auto-detects the
+  // container as (so a voice recording can come back as plain .webm,
+  // indistinguishable from a video clip by extension alone).
+  return /\.(weba|m4a|oga|mp3|wav)$/i.test(url) || url.includes("/voice/");
 }
 
 export default function ChatWidget() {

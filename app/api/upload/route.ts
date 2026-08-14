@@ -3,21 +3,23 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { heicBufferToJpeg } from "@/lib/imageProcessing";
+import { cloudinaryConfigured, uploadBufferToCloudinary } from "@/lib/cloudinary";
 
-// Stores customer-attached photos/videos of a project idea under public/uploads,
-// but they're served back out through /api/files/[filename] (see that route) rather
-// than as a plain /uploads/... static path — Next.js's production static file
-// serving only recognizes files that existed in /public at BUILD time, so anything
-// written here at runtime would otherwise 404 even though it's genuinely on disk.
-// Render's disk also isn't guaranteed persistent across deploys — fine for now, but
-// if photos need to survive long-term, swap this for real cloud storage.
+// Uploads go to Cloudinary (persistent, survives deploys) when configured --
+// see lib/cloudinary.ts. Falls back to local disk (served via
+// /api/files/[filename]) if the CLOUDINARY_* env vars aren't set yet, so
+// this doesn't break uploads before that's configured on Render. Once
+// those env vars are set, new uploads switch to Cloudinary automatically,
+// no further code change needed. Files already on local disk from before
+// this change keep being served the old way -- they aren't retroactively
+// migrated.
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25MB
 // The Render instance this runs on has 512MB total RAM, and each file gets
 // fully buffered in memory (Buffer.from(await file.arrayBuffer())) before
-// it's written to disk — a 300MB video buffer plus Next.js's own baseline
-// memory use blew past that and got OOM-killed by the OS (crash loop, no
-// error logged, since a SIGKILL gives the process no chance to log anything).
+// it's uploaded -- a 300MB video buffer plus Next.js's own baseline memory
+// use blew past that and got OOM-killed by the OS (crash loop, no error
+// logged, since a SIGKILL gives the process no chance to log anything).
 // 75MB comfortably covers a 20-30 second phone clip while leaving real
 // headroom. Raise this only alongside a real RAM increase on the hosting plan.
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024; // 75MB
@@ -72,6 +74,25 @@ function extensionFor(mimeType: string, filename: string): string {
   return guess[mimeType] ?? (isVideo(mimeType) ? ".mp4" : ".jpg");
 }
 
+async function saveLocally(buffer: Buffer, filename: string): Promise<string> {
+  const uploadDir = path.join(process.cwd(), "public", "uploads");
+  await mkdir(uploadDir, { recursive: true });
+  await writeFile(path.join(uploadDir, filename), buffer);
+  return `/api/files/${filename}`;
+}
+
+async function storeFile(buffer: Buffer, filename: string, resourceType: "image" | "video", isVoiceMessage = false): Promise<string> {
+  if (cloudinaryConfigured()) {
+    const result = await uploadBufferToCloudinary(buffer, {
+      public_id: filename.replace(/\.[^.]+$/, ""),
+      resource_type: resourceType,
+      folder: isVoiceMessage ? "verdant-uploads/voice" : "verdant-uploads",
+    });
+    return result.secure_url;
+  }
+  return saveLocally(buffer, filename);
+}
+
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const files = formData.getAll("files").filter((f): f is File => f instanceof File);
@@ -82,9 +103,6 @@ export async function POST(req: NextRequest) {
   if (files.length > MAX_FILES) {
     return NextResponse.json({ error: `Attach at most ${MAX_FILES} files` }, { status: 400 });
   }
-
-  const uploadDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadDir, { recursive: true });
 
   const urls: string[] = [];
   for (const file of files) {
@@ -100,6 +118,8 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    // Cloudinary handles audio under its video pipeline.
+    const resourceType: "image" | "video" = isVideo(file.type) || isAudio(file.type) ? "video" : "image";
 
     // Most browsers (everything but Safari) can't display HEIC inline, so try
     // converting to JPEG for wider compatibility — heicBufferToJpeg tries
@@ -107,22 +127,20 @@ export async function POST(req: NextRequest) {
     // sharp's libheif security limits, and only as a last resort do we store
     // the original file rather than failing the whole upload. A photo that
     // doesn't preview perfectly beats one that never sent.
-    let filename: string;
+    let url: string;
     if (isHeic(file.type, file.name)) {
       try {
         const jpeg = await heicBufferToJpeg(buffer);
-        filename = `${crypto.randomUUID()}.jpg`;
-        await writeFile(path.join(uploadDir, filename), jpeg);
+        url = await storeFile(jpeg, `${crypto.randomUUID()}.jpg`, "image");
       } catch (err) {
         console.error(`HEIC conversion failed for ${file.name}, storing original:`, err);
-        filename = `${crypto.randomUUID()}.heic`;
-        await writeFile(path.join(uploadDir, filename), buffer);
+        url = await storeFile(buffer, `${crypto.randomUUID()}.heic`, "image");
       }
     } else {
-      filename = `${crypto.randomUUID()}${extensionFor(file.type, file.name)}`;
-      await writeFile(path.join(uploadDir, filename), buffer);
+      const filename = `${crypto.randomUUID()}${extensionFor(file.type, file.name)}`;
+      url = await storeFile(buffer, filename, resourceType, isAudio(file.type));
     }
-    urls.push(`/api/files/${filename}`);
+    urls.push(url);
   }
 
   return NextResponse.json({ urls });
