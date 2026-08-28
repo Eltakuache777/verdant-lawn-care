@@ -19,21 +19,36 @@ const GEMINI_FILES_UPLOAD_URL = "https://generativelanguage.googleapis.com/uploa
 const RETRYABLE_STATUS = new Set([429, 503]);
 const MAX_ATTEMPTS = 4;
 
+// fetch() has no default timeout -- if Gemini accepts the connection but
+// then stalls (no error, no response, just silence), this would otherwise
+// hang forever with no way to recover, blocking whatever sequential batch
+// is awaiting it (found via a real hang: the catalog image verification
+// endpoint got stuck past 240s on a single request). A per-attempt timeout
+// turns that into a normal retryable failure instead.
+const REQUEST_TIMEOUT_MS = 45000;
+
 async function callGeminiUrl(apiKey: string, url: string, body: unknown): Promise<Response> {
   let lastRes: Response | null = null;
+  let lastErr: unknown;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok || !RETRYABLE_STATUS.has(res.status)) return res;
-    lastRes = res;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (res.ok || !RETRYABLE_STATUS.has(res.status)) return res;
+      lastRes = res;
+    } catch (err) {
+      lastErr = err; // timeout or network error -- treat like a retryable status
+    }
     if (attempt < MAX_ATTEMPTS - 1) {
       await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
     }
   }
-  return lastRes!;
+  if (lastRes) return lastRes;
+  throw lastErr instanceof Error ? lastErr : new Error("Gemini request failed after retries");
 }
 
 async function callGemini(apiKey: string, body: unknown): Promise<Response> {
@@ -146,12 +161,17 @@ let cachedVisionModel: string | null = null;
 // gemini-2.5-flash, which did exactly that). So every candidate gets a real
 // probe call, tried newest-version-first, until one actually succeeds.
 async function probeModel(apiKey: string, model: string): Promise<boolean> {
-  const res = await fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {
-    method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
-  });
-  return res.status !== 404;
+  try {
+    const res = await fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    return res.status !== 404;
+  } catch {
+    return false; // timeout or network error -- treat like "not available", try the next candidate
+  }
 }
 
 function versionScore(name: string): number {
