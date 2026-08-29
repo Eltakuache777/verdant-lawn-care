@@ -24,7 +24,6 @@ const PAYMENT_METHOD_LABEL_KEYS: Record<"cash" | "zelle" | "venmo", DictKey> = {
 };
 
 type ServiceRow = { name: string; basePrice: number };
-type MowingEstimate = { sqft: number; total: number | null; overgrownFee: number; needsManualQuote: boolean };
 type AvailabilityDay = { date: string; count: number; times: string[] };
 type FenceEstimate = { lengthFt: number; material: string; total: number };
 type PressureLineItem = { key: string; sqft: number; rate: number; cost: number };
@@ -63,15 +62,6 @@ export default function BookPage() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "zelle" | "venmo" | "">("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [mapLoading, setMapLoading] = useState(false);
-  const [mapError, setMapError] = useState<string | null>(null);
-  const [showMap, setShowMap] = useState(false);
-  const [pointCount, setPointCount] = useState(0);
-  const [mowingEstimate, setMowingEstimate] = useState<MowingEstimate | null>(null);
-  const [grassHeightIn, setGrassHeightIn] = useState("");
-  const mapRef = useRef<HTMLDivElement>(null);
-  const polygonRef = useRef<any>(null);
 
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
@@ -148,10 +138,6 @@ export default function BookPage() {
     setSelectedServices((prev) =>
       prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
     );
-    if (name === "Mowing") {
-      setShowMap(false);
-      setMowingEstimate(null);
-    }
     if (name === "Fence Building") {
       setShowFenceMap(false);
       setFenceEstimate(null);
@@ -164,107 +150,6 @@ export default function BookPage() {
     }
   }
 
-  async function getLawnEstimate() {
-    if (!address) {
-      setMapError(t("enterAddressFirst"));
-      return;
-    }
-    setMapError(null);
-    setMowingEstimate(null);
-    setMapLoading(true);
-    try {
-      const res = await fetch("/api/estimate/mowing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMapError(data.error ?? t("couldNotLocate"));
-        return;
-      }
-      setShowMap(true);
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-      if (!apiKey) {
-        setMapError(t("mapsNotConfigured"));
-        return;
-      }
-      await loadGoogleMaps(apiKey);
-      initMap(data.location);
-    } catch {
-      setMapError(t("somethingWentWrong"));
-    } finally {
-      setMapLoading(false);
-    }
-  }
-
-  function initMap(location: { lat: number; lng: number }) {
-    if (!mapRef.current) return;
-    const google = window.google;
-    const map = new google.maps.Map(mapRef.current, {
-      center: location,
-      zoom: 20,
-      mapTypeId: "satellite",
-    });
-    const polygon = new google.maps.Polygon({
-      map,
-      path: [],
-      editable: true,
-      fillColor: "#34d67f",
-      fillOpacity: 0.3,
-      strokeColor: "#34d67f",
-      strokeWeight: 2,
-    });
-    polygonRef.current = polygon;
-    setPointCount(0);
-
-    map.addListener("click", (e: any) => {
-      const path = polygon.getPath();
-      path.push(e.latLng);
-      setPointCount(path.getLength());
-    });
-  }
-
-  function finishMeasuring() {
-    const google = window.google;
-    const polygon = polygonRef.current;
-    if (!polygon || polygon.getPath().getLength() < 3) {
-      setMapError(t("clickAtLeast3"));
-      return;
-    }
-    const areaSqM = google.maps.geometry.spherical.computeArea(polygon.getPath());
-    const areaSqFt = areaSqM * 10.7639;
-    computeMowingEstimate(areaSqFt);
-  }
-
-  function clearLawnBoundary() {
-    polygonRef.current?.getPath().clear();
-    setPointCount(0);
-    setMapError(null);
-  }
-
-  async function computeMowingEstimate(areaSqFt: number) {
-    const res = await fetch("/api/estimate/mowing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        address,
-        polygonAreaSqFt: areaSqFt,
-        grassHeightIn: grassHeightIn ? Number(grassHeightIn) : undefined,
-      }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setMowingEstimate({
-        sqft: data.sqft,
-        total: data.total,
-        overgrownFee: data.overgrownFee,
-        needsManualQuote: data.needsManualQuote,
-      });
-    } else {
-      setMapError(data.error ?? t("couldNotPriceLawn"));
-    }
-  }
 
   async function measureFenceLine() {
     if (!address) {
@@ -506,8 +391,6 @@ export default function BookPage() {
     }
   }
 
-  const mowingSelected = selectedServices.includes("Mowing");
-
   return (
     <main>
       <div className="card">
@@ -617,59 +500,6 @@ export default function BookPage() {
 
           <label>{t("addressLabel")}</label>
           <AddressInput value={address} onChange={setAddress} required />
-
-          {mowingSelected && (
-            <div style={{ marginTop: -4, marginBottom: 16 }}>
-              {!mowingEstimate && (
-                <>
-                  <label style={{ fontWeight: "normal", fontSize: 13 }}>{t("grassHeightLabel")}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder={t("grassHeightPlaceholder")}
-                    value={grassHeightIn}
-                    onChange={(e) => setGrassHeightIn(e.target.value)}
-                    style={{ maxWidth: 120 }}
-                  />
-                  <button type="button" onClick={getLawnEstimate} disabled={mapLoading}>
-                    {mapLoading ? t("loadingMap") : t("measureLawnBtn")}
-                  </button>
-                </>
-              )}
-              {mapError && <p style={{ color: "var(--gold)" }}>{mapError}</p>}
-              {showMap && !mowingEstimate && (
-                <div style={{ marginTop: 12 }}>
-                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    {t("clickPointsLawn")}{" "}
-                    {t("pointsPlaced", { count: pointCount, s: pointCount === 1 ? "" : "s" })}
-                  </p>
-                  <div
-                    ref={mapRef}
-                    style={{ height: 400, width: "100%", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 10 }}
-                  />
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button type="button" onClick={finishMeasuring} disabled={pointCount < 3}>
-                      {t("finishMeasuring")}
-                    </button>
-                    <button type="button" onClick={clearLawnBoundary} disabled={pointCount === 0}>
-                      {t("clear")}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {mowingEstimate && mowingEstimate.needsManualQuote && (
-                <p className="accent">
-                  {t("lawnMeasuredManual", { sqft: mowingEstimate.sqft.toLocaleString() })}
-                </p>
-              )}
-              {mowingEstimate && !mowingEstimate.needsManualQuote && (
-                <p className="accent">
-                  {t("lawnMeasuredPrice", { sqft: mowingEstimate.sqft.toLocaleString(), total: mowingEstimate.total ?? 0 })}
-                  {mowingEstimate.overgrownFee > 0 && t("overgrownFeeNote", { fee: mowingEstimate.overgrownFee })}
-                </p>
-              )}
-            </div>
-          )}
 
           {selectedServices.includes("Fence Building") && (
             <div style={{ marginTop: -4, marginBottom: 16 }}>

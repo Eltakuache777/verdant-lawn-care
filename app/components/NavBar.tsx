@@ -116,7 +116,6 @@ export default function NavBar() {
             }}
           >
             {[
-              { href: "/estimate/mowing", label: t("navMowing") },
               { href: "/estimate/fence", label: t("navFence") },
               { href: "/estimate/pressure", label: t("navPressure") },
             ].map((item) => (
