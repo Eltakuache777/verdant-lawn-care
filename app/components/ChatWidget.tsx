@@ -19,6 +19,14 @@ function isAudioUrl(url: string) {
   // indistinguishable from a video clip by extension alone).
   return /\.(weba|m4a|oga|mp3|wav)$/i.test(url) || url.includes("/voice/");
 }
+function formatMsgTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export default function ChatWidget() {
   const pathname = usePathname();
@@ -265,6 +273,16 @@ export default function ChatWidget() {
                         )}
                       </div>
                     )}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        marginTop: 5,
+                        opacity: 0.65,
+                        color: m.sender === "customer" ? "#06130c" : "var(--text-muted)",
+                      }}
+                    >
+                      {formatMsgTime(m.createdAt)}
+                    </div>
                   </div>
                 ))}
               </div>

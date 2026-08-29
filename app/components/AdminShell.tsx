@@ -110,6 +110,14 @@ function isAudioUrl(url: string) {
   // indistinguishable from a video clip by extension alone).
   return /\.(weba|m4a|oga|mp3|wav)$/i.test(url) || url.includes("/voice/");
 }
+function formatMsgTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -1405,6 +1413,7 @@ export default function AdminShell({
                             )}
                           </div>
                         )}
+                        <div style={{ fontSize: 10, marginTop: 4, opacity: 0.65 }}>{formatMsgTime(m.createdAt)}</div>
                       </div>
                     ))}
                   </div>
@@ -1822,6 +1831,7 @@ export default function AdminShell({
                               )}
                             </div>
                           )}
+                          <div style={{ fontSize: 10, marginTop: 4, opacity: 0.65 }}>{formatMsgTime(m.createdAt)}</div>
                         </div>
                       </div>
                     ))}
