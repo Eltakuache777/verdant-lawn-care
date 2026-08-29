@@ -100,59 +100,70 @@ async function createBookingFromAssistant(input: any) {
   return { confirmed: true, bookingId: booking.id };
 }
 
+const SYSTEM_PROMPT =
+  "You are Verdant Lawn Care's scheduling assistant. Help customers book mowing, tree trimming, landscaping, fence building, pressure washing, bin cleaning, or bush trimming — customers can book more than one service in the same appointment. Use check_availability before proposing a time, and create_booking once the customer confirms. Never quote a dollar total for their own booking, even if asked — say the team will confirm the price once they've looked at the job. If a customer asks the price of a specific material, plant, or tree (e.g. \"how much for a Japanese maple\" or \"cost of river rock\") that isn't one of our own services, use web_search to find a current typical price and give a brief estimate — make clear it's a rough estimate from the web, not our own price. Be concise and friendly.";
+
 export async function POST(req: NextRequest) {
-  const { messages } = await req.json(); // [{ role: "user"|"assistant", content: "..." }]
+  try {
+    const { messages } = await req.json(); // [{ role: "user"|"assistant", content: "..." }]
 
-  let response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2048,
-    system:
-      "You are Verdant Lawn Care's scheduling assistant. Help customers book mowing, tree trimming, landscaping, fence building, pressure washing, bin cleaning, or bush trimming — customers can book more than one service in the same appointment. Use check_availability before proposing a time, and create_booking once the customer confirms. Never quote a dollar total for their own booking, even if asked — say the team will confirm the price once they've looked at the job. If a customer asks the price of a specific material, plant, or tree (e.g. \"how much for a Japanese maple\" or \"cost of river rock\") that isn't one of our own services, use web_search to find a current typical price and give a brief estimate — make clear it's a rough estimate from the web, not our own price. Be concise and friendly.",
-    messages,
-    tools: tools as Anthropic.Tool[],
-  });
-
-  // Claude can request several tool calls in the same turn (e.g. checking
-  // multiple dates at once) — every tool_use block needs a matching
-  // tool_result in the next message, or the API rejects the whole request.
-  while (response.stop_reason === "tool_use") {
-    const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-
-    const toolResults = await Promise.all(
-      toolUses.map(async (toolUse) => {
-        let result;
-        if (toolUse.name === "check_availability") {
-          result = await checkAvailability((toolUse.input as any).date);
-        } else if (toolUse.name === "create_booking") {
-          result = await createBookingFromAssistant(toolUse.input);
-        }
-        return {
-          type: "tool_result" as const,
-          tool_use_id: toolUse.id,
-          content: JSON.stringify(result),
-        };
-      })
-    );
-
-    messages.push({ role: "assistant", content: response.content });
-    messages.push({ role: "user", content: toolResults });
-
-    response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    let response = await anthropic.messages.create({
+      model: "claude-sonnet-5",
       max_tokens: 2048,
-      system:
-        "You are Verdant Lawn Care's scheduling assistant. Help customers book mowing, tree trimming, landscaping, fence building, pressure washing, bin cleaning, or bush trimming — customers can book more than one service in the same appointment. Use check_availability before proposing a time, and create_booking once the customer confirms. Never quote a dollar total for their own booking, even if asked — say the team will confirm the price once they've looked at the job. If a customer asks the price of a specific material, plant, or tree (e.g. \"how much for a Japanese maple\" or \"cost of river rock\") that isn't one of our own services, use web_search to find a current typical price and give a brief estimate — make clear it's a rough estimate from the web, not our own price. Be concise and friendly.",
+      system: SYSTEM_PROMPT,
       messages,
       tools: tools as Anthropic.Tool[],
     });
-  }
 
-  // Web search can produce multiple text segments interleaved with search blocks
-  // (e.g. "Let me check..." then results), so join all of them rather than
-  // taking just the first.
-  const reply = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n\n");
-  return NextResponse.json({ reply });
+    // Claude can request several tool calls in the same turn (e.g. checking
+    // multiple dates at once) — every tool_use block needs a matching
+    // tool_result in the next message, or the API rejects the whole request.
+    while (response.stop_reason === "tool_use") {
+      const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+
+      const toolResults = await Promise.all(
+        toolUses.map(async (toolUse) => {
+          let result;
+          if (toolUse.name === "check_availability") {
+            result = await checkAvailability((toolUse.input as any).date);
+          } else if (toolUse.name === "create_booking") {
+            result = await createBookingFromAssistant(toolUse.input);
+          }
+          return {
+            type: "tool_result" as const,
+            tool_use_id: toolUse.id,
+            content: JSON.stringify(result),
+          };
+        })
+      );
+
+      messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "user", content: toolResults });
+
+      response = await anthropic.messages.create({
+        model: "claude-sonnet-5",
+        max_tokens: 2048,
+        system: SYSTEM_PROMPT,
+        messages,
+        tools: tools as Anthropic.Tool[],
+      });
+    }
+
+    // Web search can produce multiple text segments interleaved with search blocks
+    // (e.g. "Let me check..." then results), so join all of them rather than
+    // taking just the first.
+    const reply = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n\n");
+    return NextResponse.json({ reply });
+  } catch (err: any) {
+    // Previously uncaught -- any failure (bad/sunset model id, Anthropic API
+    // error, etc.) surfaced as a bare 500 with no body, indistinguishable
+    // from a network blip. Logging the real cause server-side so a future
+    // failure like the sunset "claude-sonnet-4-6" model id doesn't require
+    // guessing blind again.
+    console.error("Assistant request failed:", err?.stack ?? err);
+    return NextResponse.json({ error: err?.message ?? "Assistant request failed" }, { status: 500 });
+  }
 }

@@ -328,17 +328,20 @@ export async function describeYardVideo(videoPath: string, mimeType: string): Pr
 // "Karl Foerster" the grass cultivar vs. the person it's named after).
 // Returns null (rather than throwing) on any failure so a bad response
 // doesn't wipe out a possibly-fine image -- caller should leave the item
-// alone in that case, not treat null as a mismatch.
+// alone in that case, not treat null as a mismatch. skipReason is attached
+// on the null path specifically so a systemic failure (quota exhausted, a
+// sunset model id) is distinguishable from an occasional one-off hiccup
+// instead of both looking like silent "skipped" items.
 export async function verifyCatalogImageMatch(
   imageDataUri: string,
   name: string,
   description: string | null
-): Promise<{ matches: boolean; reason: string } | null> {
+): Promise<{ matches: boolean; reason: string } | { matches: null; skipReason: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY isn't configured");
 
   const inlineMatch = imageDataUri.match(/^data:([^;]+);base64,(.+)$/);
-  if (!inlineMatch) return null; // not a data URI (e.g. an external URL) -- nothing to check here
+  if (!inlineMatch) return { matches: null, skipReason: "not a data URI" };
 
   try {
     const model = await resolveVisionModel(apiKey);
@@ -355,15 +358,17 @@ export async function verifyCatalogImageMatch(
       ],
     };
     const res = await callGeminiUrl(apiKey, `${GEMINI_BASE}/models/${model}:generateContent`, body);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return { matches: null, skipReason: `Gemini ${res.status}: ${(await res.text()).slice(0, 200)}` };
+    }
     const data = await res.json();
     const text: string = data.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    if (!jsonMatch) return { matches: null, skipReason: `no JSON in response: ${text.slice(0, 200)}` };
     const parsed = JSON.parse(jsonMatch[0]);
     return { matches: !!parsed.matches, reason: typeof parsed.reason === "string" ? parsed.reason : "" };
-  } catch {
-    return null;
+  } catch (err: any) {
+    return { matches: null, skipReason: err?.message ?? String(err) };
   }
 }
 

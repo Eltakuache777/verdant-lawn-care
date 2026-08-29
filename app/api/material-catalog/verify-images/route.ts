@@ -34,12 +34,14 @@ export async function POST(req: NextRequest) {
   let cleared = 0;
   let skipped = 0;
   const mismatches: { name: string; reason: string }[] = [];
+  const skipReasons: { name: string; reason: string }[] = [];
 
   for (const item of items) {
     if (!item.imageUrl) continue;
     const result = await verifyCatalogImageMatch(item.imageUrl, item.name, item.description);
-    if (result === null) {
+    if (result.matches === null) {
       skipped++;
+      skipReasons.push({ name: item.name, reason: result.skipReason });
       continue;
     }
     if (result.matches) {
@@ -62,5 +64,6 @@ export async function POST(req: NextRequest) {
     cleared,
     skipped,
     mismatches,
+    skipReasons,
   });
 }
