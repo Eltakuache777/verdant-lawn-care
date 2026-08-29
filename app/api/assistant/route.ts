@@ -3,7 +3,18 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { sendBookingConfirmation } from "@/lib/email";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Constructed lazily inside the request handler (not at module load) so a
+// missing/invalid ANTHROPIC_API_KEY surfaces as a normal caught error with
+// a real message, rather than crashing the whole module before the
+// route's own try/catch ever gets a chance to run -- that's exactly what
+// was happening: every failure showed the same bare SDK "Connection
+// error" with none of the added diagnostic detail, because the crash was
+// happening at import time, not inside the handler.
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY isn't configured");
+  return new Anthropic({ apiKey });
+}
 
 // Real tools the assistant can actually call against your real database —
 // this is what makes it able to book appointments instead of just chatting about them.
@@ -106,6 +117,7 @@ const SYSTEM_PROMPT =
 export async function POST(req: NextRequest) {
   try {
     const { messages } = await req.json(); // [{ role: "user"|"assistant", content: "..." }]
+    const anthropic = getAnthropicClient();
 
     let response = await anthropic.messages.create({
       model: "claude-sonnet-5",
