@@ -161,9 +161,19 @@ export async function POST(req: NextRequest) {
     // Previously uncaught -- any failure (bad/sunset model id, Anthropic API
     // error, etc.) surfaced as a bare 500 with no body, indistinguishable
     // from a network blip. Logging the real cause server-side so a future
-    // failure like the sunset "claude-sonnet-4-6" model id doesn't require
-    // guessing blind again.
-    console.error("Assistant request failed:", err?.stack ?? err);
-    return NextResponse.json({ error: err?.message ?? "Assistant request failed" }, { status: 500 });
+    // failure doesn't require guessing blind again. The SDK's own
+    // "Connection error" message hides the actual underlying cause (DNS,
+    // TLS, ECONNREFUSED, etc.) which usually lives on err.cause -- surface
+    // that too rather than just the generic top-level message.
+    console.error("Assistant request failed:", err?.stack ?? err, "cause:", err?.cause);
+    return NextResponse.json(
+      {
+        error: err?.message ?? "Assistant request failed",
+        cause: err?.cause?.message ?? err?.cause?.code ?? String(err?.cause ?? ""),
+        name: err?.name,
+        status: err?.status,
+      },
+      { status: 500 }
+    );
   }
 }
