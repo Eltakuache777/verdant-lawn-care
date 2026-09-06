@@ -24,7 +24,6 @@ const PAYMENT_METHOD_LABEL_KEYS: Record<"cash" | "zelle" | "venmo", DictKey> = {
 };
 
 type ServiceRow = { name: string; basePrice: number };
-type AvailabilityDay = { date: string; count: number; times: string[] };
 type FenceEstimate = { lengthFt: number; material: string; total: number };
 type PressureLineItem = { key: string; sqft: number; rate: number; cost: number };
 type PressureEstimate = { lineItems: PressureLineItem[]; total: number };
@@ -63,7 +62,6 @@ export default function BookPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [myPlan, setMyPlan] = useState<MyRecurringPlan | null>(null);
   const [reviewStats, setReviewStats] = useState<{ average: number; count: number } | null>(null);
@@ -96,10 +94,6 @@ export default function BookPage() {
     fetch("/api/services")
       .then((r) => r.json())
       .then(setServices);
-
-    fetch("/api/bookings/availability")
-      .then((r) => r.json())
-      .then((data) => setAvailability(data.days ?? []));
 
     fetch("/api/reviews")
       .then((r) => r.json())
@@ -683,7 +677,6 @@ export default function BookPage() {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
                   const isPast = day < today;
-                  const dayAvailability = availability.find((a) => a.date === key);
                   const isSelected = date === key;
                   return (
                     <button
@@ -704,39 +697,23 @@ export default function BookPage() {
                       }}
                     >
                       <div>{day.getDate()}</div>
-                      {dayAvailability && (
-                        <div style={{ fontSize: 9, color: "var(--gold)" }}>
-                          {t("bookedCount", { count: dayAvailability.count })}
-                        </div>
-                      )}
                     </button>
                   );
                 })}
               </div>
             ))}
-            {date &&
-              (() => {
-                const selected = availability.find((a) => a.date === date);
-                return (
-                  <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 10, marginBottom: 0 }}>
-                    {t("selectedDatePrefix")}{" "}
-                    <strong style={{ color: "var(--text)" }}>
-                      {new Date(date + "T00:00:00").toLocaleDateString(dateLocale, {
-                        weekday: "long",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </strong>
-                    {selected
-                      ? t("otherBookingsNote", {
-                          count: selected.count,
-                          s: selected.count === 1 ? "" : "s",
-                          times: selected.times.join(", "),
-                        })
-                      : t("noBookingsNote")}
-                  </p>
-                );
-              })()}
+            {date && (
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 10, marginBottom: 0 }}>
+                {t("selectedDatePrefix")}{" "}
+                <strong style={{ color: "var(--text)" }}>
+                  {new Date(date + "T00:00:00").toLocaleDateString(dateLocale, {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </strong>
+              </p>
+            )}
           </div>
 
           <label>{t("timeLabel")}</label>
