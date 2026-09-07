@@ -4,6 +4,8 @@ import { verifyLoginCode, roleForEmail } from "@/lib/loginCode";
 import { hashPassword } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
 import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
+import { sendNewAccountAlert } from "@/lib/email";
+import { sendPushToEmails } from "@/lib/push";
 import { z } from "zod";
 
 const BodySchema = z.object({
@@ -53,6 +55,22 @@ export async function POST(req: NextRequest) {
       },
     });
     name = customer.name;
+
+    if (!existing) {
+      const staff = await prisma.worker.findMany({ select: { email: true } });
+      const staffEmails = staff.map((w) => w.email);
+      sendNewAccountAlert({
+        staffEmails,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+      }).catch((err) => console.error("Failed to send new account alert:", err));
+      sendPushToEmails(staffEmails, {
+        title: "New account",
+        body: customer.name,
+        url: "/admin",
+      }).catch((err) => console.error("Failed to send new account push:", err));
+    }
   } else {
     const worker = await prisma.worker.update({
       where: { email },

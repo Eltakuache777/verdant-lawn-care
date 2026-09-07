@@ -113,6 +113,45 @@ export async function sendAppointmentReminder(booking: AppointmentReminderInput)
   });
 }
 
+type StaffAppointmentReminderInput = {
+  staffEmails: string[];
+  customerName: string;
+  address: string;
+  services: string[];
+  scheduledFor: Date;
+};
+
+// The customer-facing reminder above only ever went to the customer -- staff
+// found out about a job by whatever they remembered from the original
+// booking alert, with nothing prompting them again the day before. Same
+// 23-25h window and reminderSentAt guard as the customer one (see
+// runDueAppointmentReminders), just addressed to every worker instead.
+export async function sendStaffAppointmentReminder(booking: StaffAppointmentReminderInput) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  if (!apiKey || !fromEmail || booking.staffEmails.length === 0) return;
+
+  const when = booking.scheduledFor.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://verdantlawn.care";
+  const logo = `<img src="${appUrl}/logo.svg" width="48" height="48" alt="Verdant Lawn Care" style="display:block;margin-bottom:16px;border-radius:10px" />`;
+
+  await sgMail.send({
+    to: booking.staffEmails,
+    from: { email: fromEmail, name: "Verdant Lawn Care" },
+    subject: `Tomorrow: ${booking.customerName} — ${booking.services.join(", ")}`,
+    text: `Reminder — this job is scheduled for tomorrow:\n\nCustomer: ${booking.customerName}\nServices: ${booking.services.join(", ")}\nWhen: ${when}\nAddress: ${booking.address}`,
+    html: `${logo}<p>Reminder — this job is scheduled for tomorrow:</p><ul><li><strong>Customer:</strong> ${booking.customerName}</li><li><strong>Services:</strong> ${booking.services.join(", ")}</li><li><strong>When:</strong> ${when}</li><li><strong>Address:</strong> ${booking.address}</li></ul>`,
+  });
+}
+
 type ReviewRequestInput = {
   customerName: string;
   customerEmail: string;
@@ -176,5 +215,32 @@ export async function sendNewBookingAlert(booking: NewBookingAlertInput) {
     subject: `New booking: ${booking.customerName}`,
     text: `New booking from ${booking.customerName}:\n\nServices: ${booking.services.join(", ")}\nWhen: ${when}\nAddress: ${booking.address}\nPhone: ${booking.customerPhone ?? "not provided"}\nEmail: ${booking.customerEmail}\nTotal: $${booking.totalPrice}${paymentLabel ? `\nPayment: ${paymentLabel}` : ""}`,
     html: `${logo}<p>New booking from <strong>${booking.customerName}</strong>:</p><ul><li><strong>Services:</strong> ${booking.services.join(", ")}</li><li><strong>When:</strong> ${when}</li><li><strong>Address:</strong> ${booking.address}</li><li><strong>Phone:</strong> ${booking.customerPhone ?? "not provided"}</li><li><strong>Email:</strong> ${booking.customerEmail}</li><li><strong>Total:</strong> $${booking.totalPrice}</li>${paymentLabel ? `<li><strong>Payment:</strong> ${paymentLabel}</li>` : ""}</ul>`,
+  });
+}
+
+type NewAccountAlertInput = {
+  staffEmails: string[];
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+};
+
+// Fired once, at the moment a brand-new Customer row is actually created
+// (see /api/auth/verify-code) -- not on every login/code-verify, which
+// would fire this on every returning customer too.
+export async function sendNewAccountAlert(alert: NewAccountAlertInput) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  if (!apiKey || !fromEmail || alert.staffEmails.length === 0) return;
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://verdantlawn.care";
+  const logo = `<img src="${appUrl}/logo.svg" width="48" height="48" alt="Verdant Lawn Care" style="display:block;margin-bottom:16px;border-radius:10px" />`;
+
+  await sgMail.send({
+    to: alert.staffEmails,
+    from: { email: fromEmail, name: "Verdant Lawn Care" },
+    subject: `New account: ${alert.customerName}`,
+    text: `A new customer account was just created:\n\nName: ${alert.customerName}\nEmail: ${alert.customerEmail}\nPhone: ${alert.customerPhone ?? "not provided"}`,
+    html: `${logo}<p>A new customer account was just created:</p><ul><li><strong>Name:</strong> ${alert.customerName}</li><li><strong>Email:</strong> ${alert.customerEmail}</li><li><strong>Phone:</strong> ${alert.customerPhone ?? "not provided"}</li></ul>`,
   });
 }

@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
-import { sendAppointmentReminder } from "./email";
-import { sendPushToEmail } from "./push";
+import { sendAppointmentReminder, sendStaffAppointmentReminder } from "./email";
+import { sendPushToEmail, sendPushToEmails } from "./push";
 
 // Window rather than an exact 24h mark, since this runs on a periodic timer
 // (see instrumentation.ts) rather than at the precise scheduled minute --
@@ -24,6 +24,9 @@ export async function runDueAppointmentReminders(): Promise<{ sent: number }> {
     include: { customer: true },
   });
 
+  const staff = due.length > 0 ? await prisma.worker.findMany({ select: { email: true } }) : [];
+  const staffEmails = staff.map((w) => w.email);
+
   let sent = 0;
   for (const booking of due) {
     try {
@@ -37,6 +40,18 @@ export async function runDueAppointmentReminders(): Promise<{ sent: number }> {
       await sendPushToEmail(booking.customer.email, {
         title: "Appointment reminder",
         body: `${booking.services.join(", ")} — tomorrow`,
+      });
+      await sendStaffAppointmentReminder({
+        staffEmails,
+        customerName: booking.customer.name,
+        address: booking.address,
+        services: booking.services,
+        scheduledFor: booking.scheduledFor,
+      });
+      await sendPushToEmails(staffEmails, {
+        title: "Appointment tomorrow",
+        body: `${booking.customer.name} — ${booking.services.join(", ")}`,
+        url: "/admin",
       });
       await prisma.booking.update({ where: { id: booking.id }, data: { reminderSentAt: now } });
       sent++;

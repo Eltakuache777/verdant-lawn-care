@@ -9,8 +9,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title || "Verdant Lawn Care", {
       body: payload.body,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/icons/icon-512.png",
+      badge: "/icons/notification-badge.png",
       data: { url: payload.url || "/" },
     })
   );
