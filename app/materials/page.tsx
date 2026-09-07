@@ -23,7 +23,7 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [session, setSession] = useState<Session | null>(null);
 
-  const [allItems, setAllItems] = useState<CatalogItem[]>([]);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -39,9 +39,10 @@ export default function MaterialsPage() {
     fetch("/api/materials")
       .then((r) => r.json())
       .then(setMaterials);
-    fetch("/api/material-catalog")
+    fetch("/api/material-catalog?counts=1")
       .then((r) => r.json())
-      .then(setAllItems);
+      .then(setCategoryCounts)
+      .catch((err) => console.error("Failed to load category counts:", err));
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then(setSession)
@@ -84,11 +85,10 @@ export default function MaterialsPage() {
         }),
       });
       if (res.ok) {
-        const created = await res.json();
         setNewName("");
         setNewDesc("");
         loadItems(selectedCategory);
-        setAllItems((prev) => [...prev, created]);
+        setCategoryCounts((prev) => ({ ...prev, [selectedCategory]: (prev[selectedCategory] ?? 0) + 1 }));
       }
     } finally {
       setAdding(false);
@@ -99,12 +99,12 @@ export default function MaterialsPage() {
     if (!selectedCategory) return;
     if (!confirm(t("materialsCatalogConfirmDelete"))) return;
     setItems((prev) => prev.filter((i) => i.id !== id));
-    setAllItems((prev) => prev.filter((i) => i.id !== id));
+    setCategoryCounts((prev) => ({ ...prev, [selectedCategory]: Math.max(0, (prev[selectedCategory] ?? 1) - 1) }));
     await fetch(`/api/material-catalog/${id}`, { method: "DELETE" });
   }
 
   function countFor(category: string) {
-    return allItems.filter((i) => i.category === category).length;
+    return categoryCounts[category] ?? 0;
   }
 
   return (

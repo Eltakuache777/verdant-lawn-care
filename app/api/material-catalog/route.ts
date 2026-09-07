@@ -11,6 +11,17 @@ import { CATALOG_CATEGORIES } from "@/lib/materialCatalog";
 export async function GET(req: NextRequest) {
   const category = req.nextUrl.searchParams.get("category");
   const q = req.nextUrl.searchParams.get("q")?.trim();
+  const countsOnly = req.nextUrl.searchParams.get("counts") === "1";
+
+  if (countsOnly) {
+    const grouped = await prisma.materialCatalogItem.groupBy({
+      by: ["category"],
+      _count: { _all: true },
+    });
+    const counts: Record<string, number> = {};
+    for (const g of grouped) counts[g.category] = g._count._all;
+    return NextResponse.json(counts);
+  }
 
   const items = await prisma.materialCatalogItem.findMany({
     where: {
