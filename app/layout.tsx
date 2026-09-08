@@ -122,6 +122,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       "Lawn mowing, landscaping, tree trimming, bush trimming, fence building, pressure washing, bin cleaning, lawn clean up, and junk removal serving Austin, TX and surrounding areas.",
     areaServed: { "@type": "City", name: "Austin", "@id": "https://en.wikipedia.org/wiki/Austin,_Texas" },
     address: { "@type": "PostalAddress", addressLocality: "Austin", addressRegion: "TX", addressCountry: "US" },
+    founder: [
+      { "@type": "Person", name: "Brandon Olguin" },
+      { "@type": "Person", name: "David Olguin" },
+      { "@type": "Person", name: "Bryan Castelan" },
+    ],
     ...(aggregateRating ? { aggregateRating } : {}),
     makesOffer: [
       "Mowing",

@@ -6,6 +6,7 @@ import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
 import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
 import { sendNewAccountAlert } from "@/lib/email";
 import { sendPushToEmails } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
 
 const BodySchema = z.object({
@@ -70,6 +71,12 @@ export async function POST(req: NextRequest) {
         body: customer.name,
         url: "/admin",
       }).catch((err) => console.error("Failed to send new account push:", err));
+      createNotification({
+        type: "new_account",
+        title: "New account",
+        body: `${customer.name} (${customer.email}) just signed up`,
+        url: "/admin",
+      }).catch((err) => console.error("Failed to create new account notification:", err));
     }
   } else {
     const worker = await prisma.worker.update({

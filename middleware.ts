@@ -21,6 +21,8 @@ const STAFF_PATHS = new Set([
   "/api/recurring/run-due",
   "/api/staff-chat/threads",
   "/api/calendar/my-link",
+  "/api/notifications",
+  "/api/notifications/read",
 ]);
 
 // Just needs to be logged in as someone — used for the customer self-service
@@ -102,5 +104,7 @@ export const config = {
     "/api/material-catalog/:id",
     "/api/canvass/:path*",
     "/api/calendar/my-link",
+    "/api/notifications",
+    "/api/notifications/read",
   ],
 };

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendBookingConfirmation, sendNewBookingAlert } from "@/lib/email";
 import { sendPushToEmails } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 import { SERVICE_FREQUENCY_VALUES } from "@/lib/recurringFrequency";
 import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
 import { z } from "zod";
@@ -117,6 +118,12 @@ export async function POST(req: NextRequest) {
     body: `${customer.name} — ${booking.services.join(", ")}`,
     url: "/admin",
   });
+  createNotification({
+    type: "new_booking",
+    title: "New booking",
+    body: `${customer.name} — ${booking.services.join(", ")} on ${booking.scheduledFor.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`,
+    url: "/admin",
+  }).catch((err) => console.error("Failed to create new booking notification:", err));
 
   return NextResponse.json(booking, { status: 201 });
 }

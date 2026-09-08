@@ -8,6 +8,17 @@ import { useFeedback } from "./FeedbackContext";
 import { LANGUAGES } from "@/lib/i18n";
 
 type Session = { loggedIn: boolean; role?: "admin" | "worker" | "customer"; email?: string; name?: string };
+type MyBooking = { id: string; services: string[]; scheduledFor: string; status: string; address: string };
+
+function formatBookingTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 function Logo() {
   return (
@@ -28,6 +39,9 @@ export default function NavBar() {
   const [session, setSession] = useState<Session | null>(null);
   const [estimatesOpen, setEstimatesOpen] = useState(false);
   const estimatesRef = useRef<HTMLDivElement>(null);
+  const [myBookings, setMyBookings] = useState<MyBooking[]>([]);
+  const [bookingsPanelOpen, setBookingsPanelOpen] = useState(false);
+  const bookingsPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -37,14 +51,29 @@ export default function NavBar() {
   }, [pathname]);
 
   useEffect(() => {
+    if (session?.role !== "customer") return;
+    fetch("/api/my/bookings")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setMyBookings)
+      .catch(() => {});
+  }, [session]);
+
+  useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (estimatesRef.current && !estimatesRef.current.contains(e.target as Node)) {
         setEstimatesOpen(false);
+      }
+      if (bookingsPanelRef.current && !bookingsPanelRef.current.contains(e.target as Node)) {
+        setBookingsPanelOpen(false);
       }
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, []);
+
+  const nextBooking = myBookings.find(
+    (b) => b.status !== "cancelled" && b.status !== "completed" && new Date(b.scheduledFor) >= new Date()
+  );
 
   async function logOut() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -199,12 +228,73 @@ export default function NavBar() {
 
       {showCustomerWidgets && session?.loggedIn ? (
         <>
+          {session.role === "customer" && (
+            <div ref={bookingsPanelRef} style={{ position: "relative", marginLeft: "auto" }}>
+              <button
+                type="button"
+                onClick={() => setBookingsPanelOpen((v) => !v)}
+                aria-label="Your bookings"
+                style={{ background: "transparent", color: "var(--text)", fontSize: 16, padding: "4px 8px" }}
+              >
+                🔔
+              </button>
+              {bookingsPanelOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    width: 300,
+                    maxHeight: 420,
+                    overflowY: "auto",
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    zIndex: 30,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                  }}
+                >
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 13, color: "var(--text)" }}>
+                    Your bookings
+                  </div>
+                  {nextBooking && (
+                    <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", background: "rgba(52,214,127,0.06)" }}>
+                      <p style={{ margin: 0, fontSize: 11, color: "var(--accent)", fontWeight: 700, textTransform: "uppercase" }}>
+                        Next appointment
+                      </p>
+                      <p style={{ margin: "3px 0 0", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                        {nextBooking.services.join(", ")}
+                      </p>
+                      <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                        {formatBookingTime(nextBooking.scheduledFor)}
+                      </p>
+                    </div>
+                  )}
+                  {myBookings.length === 0 ? (
+                    <p style={{ padding: 14, color: "var(--text-muted)", fontSize: 13 }}>No bookings yet.</p>
+                  ) : (
+                    myBookings
+                      .slice()
+                      .reverse()
+                      .map((b) => (
+                        <div key={b.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{b.services.join(", ")}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                            {formatBookingTime(b.scheduledFor)} · {b.status}
+                          </p>
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <a
             href={session.role === "admin" || session.role === "worker" ? "/admin" : "/account"}
             title={session.name || session.email}
             aria-label={session.name || session.email}
             style={{
-              marginLeft: "auto",
+              marginLeft: session.role === "customer" ? 0 : "auto",
               width: 34,
               height: 34,
               borderRadius: "50%",

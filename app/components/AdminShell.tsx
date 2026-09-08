@@ -98,6 +98,7 @@ type TeamThread = {
 };
 type TeamMsg = { id: string; senderEmail: string; senderName: string | null; body: string; attachmentUrls: string[]; createdAt: string };
 type FeedbackRow = { id: string; message: string; email: string | null; page: string | null; createdAt: string };
+type NotificationRow = { id: string; type: string; title: string; body: string; url: string | null; createdAt: string; read: boolean };
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm)$/i.test(url);
@@ -155,6 +156,11 @@ export default function AdminShell({
   const [enablingNotifs, setEnablingNotifs] = useState(false);
   const [calendarLink, setCalendarLink] = useState<string | null>(null);
   const [calendarLinkCopied, setCalendarLinkCopied] = useState(false);
+
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -389,6 +395,7 @@ export default function AdminShell({
 
     loadBookings(false);
     loadThreads();
+    loadNotifications();
     loadReport();
     loadWorkers();
     loadCustomers();
@@ -421,11 +428,23 @@ export default function AdminShell({
       loadThreads();
       if (selectedEmailRef.current) loadThread(selectedEmailRef.current);
     }, 25000);
+    const notifInterval = setInterval(loadNotifications, 25000);
     return () => {
       clearInterval(interval);
       clearInterval(threadsInterval);
+      clearInterval(notifInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) {
+        setNotifPanelOpen(false);
+      }
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
   }, []);
 
   function loadCustomers() {
@@ -865,6 +884,28 @@ export default function AdminShell({
       .catch(() => setThreadsError("Could not load messages."));
   }
 
+  function loadNotifications() {
+    fetch("/api/notifications")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setNotifications(data.notifications);
+        setUnreadNotifCount(data.unreadCount);
+      })
+      .catch(() => {});
+  }
+
+  async function markAllNotificationsRead() {
+    if (unreadNotifCount === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadNotifCount(0);
+    await fetch("/api/notifications/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {});
+  }
+
   function openThread(t: Thread) {
     setSelectedEmail(t.customerEmail);
     setSelectedName(t.customerName);
@@ -1114,6 +1155,104 @@ export default function AdminShell({
                 {calendarLinkCopied ? "✓ Copied" : "📅 Copy calendar link"}
               </button>
             )}
+            <div ref={notifPanelRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const opening = !notifPanelOpen;
+                  setNotifPanelOpen(opening);
+                  if (opening) markAllNotificationsRead();
+                }}
+                aria-label="Notifications"
+                style={{
+                  position: "relative",
+                  background: "transparent",
+                  color: "var(--text)",
+                  fontSize: 16,
+                  padding: "4px 8px",
+                }}
+              >
+                🔔
+                {unreadNotifCount > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 2,
+                      minWidth: 15,
+                      height: 15,
+                      padding: "0 3px",
+                      borderRadius: 8,
+                      background: "var(--gold)",
+                      color: "#1a1206",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {unreadNotifCount}
+                  </span>
+                )}
+              </button>
+              {notifPanelOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    width: 320,
+                    maxHeight: 420,
+                    overflowY: "auto",
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    zIndex: 30,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                  }}
+                >
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 13 }}>
+                    Notifications
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p style={{ padding: 14, color: "var(--text-muted)", fontSize: 13 }}>No notifications yet.</p>
+                  ) : (
+                    notifications.map((n) => {
+                      const targetView: View | null =
+                        n.type === "new_account" ? "customers" :
+                        n.type === "new_booking" ? "schedule" :
+                        n.type === "new_message" ? "messages" :
+                        n.type === "team_message" ? "team" : null;
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => {
+                            setNotifPanelOpen(false);
+                            if (targetView) setView(targetView);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "10px 14px",
+                            borderBottom: "1px solid var(--border)",
+                            background: n.read ? "transparent" : "rgba(52,214,127,0.06)",
+                          }}
+                        >
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "var(--text)" }}>{n.title}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {n.body}
+                          </p>
+                          <p style={{ margin: "3px 0 0", fontSize: 11, color: "var(--text-muted)" }}>{formatMsgTime(n.createdAt)}</p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={logOut}

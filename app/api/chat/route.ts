@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToEmails } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 import { isCustomerBlocked, BLOCKED_CUSTOMER_MESSAGE } from "@/lib/blockedCustomer";
 import { z } from "zod";
 
@@ -50,6 +51,12 @@ export async function POST(req: NextRequest) {
     body: parsed.data.body,
     url: "/admin",
   });
+  createNotification({
+    type: "new_message",
+    title: `New message from ${parsed.data.customerName}`,
+    body: parsed.data.body,
+    url: "/admin",
+  }).catch((err) => console.error("Failed to create new message notification:", err));
 
   return NextResponse.json(message, { status: 201 });
 }

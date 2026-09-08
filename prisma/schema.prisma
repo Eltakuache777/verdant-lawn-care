@@ -341,3 +341,21 @@ model CanvassStatusEvent {
   @@index([houseId])
   @@index([workerEmail])
 }
+
+// Feed behind the staff notification bell. recipientEmails empty = broadcast
+// to all staff (new account, new booking, new customer message); non-empty
+// targets specific staff only (e.g. an internal staff-chat reply, which
+// shouldn't leak a preview to staff outside that thread). readBy tracks
+// which staff have dismissed it, since a broadcast row is shared by everyone.
+model Notification {
+  id              String   @id @default(cuid())
+  type            String
+  title           String
+  body            String
+  url             String?
+  recipientEmails String[] @default([])
+  readBy          String[] @default([])
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { staffSessionFrom } from "@/lib/auth";
 import { sendPushToEmails } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
 
 async function assertMember(threadId: string, email: string) {
@@ -58,6 +59,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     body: parsed.data.body,
     url: "/admin",
   });
+  if (others.length > 0) {
+    createNotification({
+      type: "team_message",
+      title: `${session.name || session.email}`,
+      body: parsed.data.body,
+      url: "/admin",
+      recipientEmails: others,
+    }).catch((err) => console.error("Failed to create team message notification:", err));
+  }
 
   return NextResponse.json(message, { status: 201 });
 }
