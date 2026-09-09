@@ -86,7 +86,7 @@ type CustomerDetail = CustomerRow & {
     amountPaid: number | null;
   }[];
 };
-type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team" | "feedback" | "canvassing";
+type View = "schedule" | "messages" | "prices" | "reports" | "design" | "workers" | "customers" | "team" | "feedback" | "canvassing" | "notifications";
 type TeamThread = {
   id: string;
   isGroup: boolean;
@@ -159,8 +159,6 @@ export default function AdminShell({
 
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
-  const notifPanelRef = useRef<HTMLDivElement>(null);
 
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -435,16 +433,6 @@ export default function AdminShell({
       clearInterval(notifInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) {
-        setNotifPanelOpen(false);
-      }
-    }
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
   }, []);
 
   function loadCustomers() {
@@ -1058,114 +1046,55 @@ export default function AdminShell({
         {RAIL_ITEMS.map((item) => (
           <div key={item.key}>
             {item.key === "messages" && (
-              <div ref={notifPanelRef} style={{ position: "relative" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const opening = !notifPanelOpen;
-                    setNotifPanelOpen(opening);
-                    if (opening) markAllNotificationsRead();
-                  }}
-                  aria-label="Notifications"
-                  style={{
-                    position: "relative",
-                    width: 56,
-                    height: 56,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 2,
-                    background: "transparent",
-                    color: "var(--text-muted)",
-                    border: "1px solid transparent",
-                    borderRadius: 10,
-                    fontWeight: 400,
-                    cursor: "pointer",
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>🔔</span>
-                  <span style={{ fontSize: 10 }}>Alerts</span>
-                  {unreadNotifCount > 0 && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 4,
-                        right: 4,
-                        minWidth: 16,
-                        height: 16,
-                        padding: "0 3px",
-                        borderRadius: 8,
-                        background: "var(--gold)",
-                        color: "#1a1206",
-                        fontSize: 10,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {unreadNotifCount}
-                    </span>
-                  )}
-                </button>
-                {notifPanelOpen && (
-                  <div
+              <button
+                type="button"
+                onClick={() => {
+                  setView("notifications");
+                  markAllNotificationsRead();
+                }}
+                aria-label="Notifications"
+                style={{
+                  position: "relative",
+                  width: 56,
+                  height: 56,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 2,
+                  background: view === "notifications" ? "rgba(52,214,127,0.15)" : "transparent",
+                  color: view === "notifications" ? "var(--accent)" : "var(--text-muted)",
+                  border: view === "notifications" ? "1px solid var(--accent)" : "1px solid transparent",
+                  borderRadius: 10,
+                  fontWeight: 400,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 20 }}>🔔</span>
+                <span style={{ fontSize: 10 }}>Alerts</span>
+                {unreadNotifCount > 0 && (
+                  <span
                     style={{
                       position: "absolute",
-                      top: 0,
-                      left: "calc(100% + 8px)",
-                      width: 320,
-                      maxHeight: 420,
-                      overflowY: "auto",
-                      background: "var(--bg-elevated)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 10,
-                      zIndex: 30,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                      top: 4,
+                      right: 4,
+                      minWidth: 16,
+                      height: 16,
+                      padding: "0 3px",
+                      borderRadius: 8,
+                      background: "var(--gold)",
+                      color: "#1a1206",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: 13, color: "var(--text)" }}>
-                      Notifications
-                    </div>
-                    {notifications.length === 0 ? (
-                      <p style={{ padding: 14, color: "var(--text-muted)", fontSize: 13 }}>No notifications yet.</p>
-                    ) : (
-                      notifications.map((n) => {
-                        const targetView: View | null =
-                          n.type === "new_account" ? "customers" :
-                          n.type === "new_booking" ? "schedule" :
-                          n.type === "new_message" ? "messages" :
-                          n.type === "team_message" ? "team" : null;
-                        return (
-                          <button
-                            key={n.id}
-                            type="button"
-                            onClick={() => {
-                              setNotifPanelOpen(false);
-                              if (targetView) setView(targetView);
-                            }}
-                            style={{
-                              display: "block",
-                              width: "100%",
-                              textAlign: "left",
-                              padding: "10px 14px",
-                              borderBottom: "1px solid var(--border)",
-                              background: n.read ? "transparent" : "rgba(52,214,127,0.06)",
-                            }}
-                          >
-                            <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "var(--text)" }}>{n.title}</p>
-                            <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {n.body}
-                            </p>
-                            <p style={{ margin: "3px 0 0", fontSize: 11, color: "var(--text-muted)" }}>{formatMsgTime(n.createdAt)}</p>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
+                    {unreadNotifCount}
+                  </span>
                 )}
-              </div>
+              </button>
             )}
             <button
               onClick={() => {
@@ -2566,6 +2495,47 @@ export default function AdminShell({
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        {view === "notifications" && (
+          <div className="admin-view-scroll" style={{ padding: 20 }}>
+            <div className="card" style={{ margin: 0 }}>
+              <h1>Notifications</h1>
+              <p style={{ color: "var(--text-muted)", marginTop: -8 }}>
+                New accounts, bookings, messages, and team replies.
+              </p>
+              {notifications.length === 0 && (
+                <p style={{ color: "var(--text-muted)" }}>No notifications yet.</p>
+              )}
+              {notifications.map((n) => {
+                const targetView: View | null =
+                  n.type === "new_account" ? "customers" :
+                  n.type === "new_booking" ? "schedule" :
+                  n.type === "new_message" ? "messages" :
+                  n.type === "team_message" ? "team" : null;
+                return (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => targetView && setView(targetView)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      padding: 12,
+                      marginBottom: 8,
+                      background: n.read ? "transparent" : "rgba(52,214,127,0.06)",
+                    }}
+                  >
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: "var(--text)" }}>{n.title}</p>
+                    <p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{n.body}</p>
+                    <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{formatMsgTime(n.createdAt)}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
