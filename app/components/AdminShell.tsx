@@ -766,6 +766,24 @@ export default function AdminShell({
     }
   }
 
+  async function cancelBooking(id: string) {
+    if (!confirm("Cancel this booking? This can't be undone.")) return;
+    setCompletingId(id);
+    try {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...updated } : b)));
+      }
+    } finally {
+      setCompletingId(null);
+    }
+  }
+
   async function assignWorker(id: string, email: string) {
     const worker = workers.find((w) => w.email === email);
     const res = await fetch(`/api/bookings/${id}`, {
@@ -1293,8 +1311,13 @@ export default function AdminShell({
                   </p>
                   <p style={{ margin: "4px 0" }}>
                     ${b.totalPrice} —{" "}
-                    <span style={{ color: b.status === "completed" ? "var(--accent)" : "var(--text-muted)" }}>
-                      {b.status === "completed" ? "✓ completed" : b.status}
+                    <span
+                      style={{
+                        color:
+                          b.status === "completed" ? "var(--accent)" : b.status === "cancelled" ? "var(--gold)" : "var(--text-muted)",
+                      }}
+                    >
+                      {b.status === "completed" ? "✓ completed" : b.status === "cancelled" ? "✗ cancelled" : b.status}
                     </span>
                     {b.paymentMethod && (
                       <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
@@ -1320,15 +1343,25 @@ export default function AdminShell({
                     </select>
                   </div>
 
-                  {b.status !== "completed" && (
-                    <button
-                      type="button"
-                      onClick={() => markCompleted(b.id)}
-                      disabled={completingId === b.id}
-                      style={{ fontSize: 12, padding: "6px 10px", marginTop: 4 }}
-                    >
-                      {completingId === b.id ? "Marking..." : "Mark completed"}
-                    </button>
+                  {b.status !== "completed" && b.status !== "cancelled" && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => markCompleted(b.id)}
+                        disabled={completingId === b.id}
+                        style={{ fontSize: 12, padding: "6px 10px" }}
+                      >
+                        {completingId === b.id ? "Marking..." : "Mark completed"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => cancelBooking(b.id)}
+                        disabled={completingId === b.id}
+                        style={{ fontSize: 12, padding: "6px 10px", background: "transparent", color: "var(--gold)", border: "1px solid var(--gold)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   )}
 
                   {b.status === "completed" && (
@@ -2512,6 +2545,7 @@ export default function AdminShell({
                 const targetView: View | null =
                   n.type === "new_account" ? "customers" :
                   n.type === "new_booking" ? "schedule" :
+                  n.type === "booking_cancelled" ? "schedule" :
                   n.type === "new_message" ? "messages" :
                   n.type === "team_message" ? "team" : null;
                 return (

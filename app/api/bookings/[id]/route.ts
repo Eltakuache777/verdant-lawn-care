@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, isWorkerRequest } from "@/lib/auth";
-import { sendReviewRequestEmail } from "@/lib/email";
+import { sendReviewRequestEmail, sendBookingCancelledEmail } from "@/lib/email";
+import { sendPushToEmail, sendPushToEmails } from "@/lib/push";
+import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
 
 // Marking a job "completed" and recording what was actually collected are both
 // allowed for admin AND workers — whoever's on-site for the job is best
 // placed to log the real payment amount right after finishing it.
 const PatchSchema = z.object({
-  status: z.literal("completed").optional(),
+  status: z.enum(["completed", "cancelled"]).optional(),
   amountPaid: z.number().min(0).optional(),
   assignedWorkerEmail: z.string().email().nullable().optional(),
   assignedWorkerName: z.string().nullable().optional(),
@@ -38,6 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.status = "completed";
     data.completedAt = new Date();
   }
+  if (status === "cancelled") {
+    data.status = "cancelled";
+  }
   if (amountPaid !== undefined) {
     data.amountPaid = amountPaid;
   }
@@ -62,6 +67,42 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         services: booking.services,
       });
     }).catch((err) => console.error("Failed to send review request email:", err));
+  }
+
+  if (status === "cancelled") {
+    // Fire-and-forget on all sides -- a failed email/push shouldn't block
+    // the cancellation from taking effect.
+    prisma.customer.findUnique({ where: { id: booking.customerId } }).then(async (customer) => {
+      if (!customer) return;
+      const staff = await prisma.worker.findMany({ select: { email: true } });
+      const staffEmails = staff.map((w) => w.email);
+      const summary = `${customer.name} — ${booking.services.join(", ")} on ${booking.scheduledFor.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })}`;
+
+      await sendBookingCancelledEmail({
+        customerName: customer.name,
+        customerEmail: customer.email,
+        services: booking.services,
+        scheduledFor: booking.scheduledFor,
+      }).catch((err) => console.error("Failed to send cancellation email:", err));
+
+      await sendPushToEmail(customer.email, {
+        title: "Booking cancelled",
+        body: `${booking.services.join(", ")} on ${booking.scheduledFor.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} was cancelled`,
+      }).catch((err) => console.error("Failed to send customer cancellation push:", err));
+
+      await sendPushToEmails(staffEmails, {
+        title: "Booking cancelled",
+        body: summary,
+        url: "/admin",
+      }).catch((err) => console.error("Failed to send staff cancellation push:", err));
+
+      await createNotification({
+        type: "booking_cancelled",
+        title: "Booking cancelled",
+        body: summary,
+        url: "/admin",
+      }).catch((err) => console.error("Failed to create cancellation notification:", err));
+    }).catch((err) => console.error("Failed to process booking cancellation side-effects:", err));
   }
 
   return NextResponse.json(booking);

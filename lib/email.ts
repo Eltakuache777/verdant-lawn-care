@@ -244,3 +244,36 @@ export async function sendNewAccountAlert(alert: NewAccountAlertInput) {
     html: `${logo}<p>A new customer account was just created:</p><ul><li><strong>Name:</strong> ${alert.customerName}</li><li><strong>Email:</strong> ${alert.customerEmail}</li><li><strong>Phone:</strong> ${alert.customerPhone ?? "not provided"}</li></ul>`,
   });
 }
+
+type BookingCancelledInput = {
+  customerName: string;
+  customerEmail: string;
+  services: string[];
+  scheduledFor: Date;
+};
+
+export async function sendBookingCancelledEmail(booking: BookingCancelledInput) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  if (!apiKey || !fromEmail) return;
+
+  const when = booking.scheduledFor.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://verdantlawn.care";
+  const logo = `<img src="${appUrl}/logo.svg" width="48" height="48" alt="Verdant Lawn Care" style="display:block;margin-bottom:16px;border-radius:10px" />`;
+
+  await sgMail.send({
+    to: booking.customerEmail,
+    from: { email: fromEmail, name: "Verdant Lawn Care" },
+    subject: "Your Verdant Lawn Care appointment was cancelled",
+    text: `Hi ${booking.customerName},\n\nYour appointment has been cancelled:\n\nServices: ${booking.services.join(", ")}\nWhen: ${when}\n\nIf this wasn't expected or you'd like to rebook, just reply or book again at ${appUrl}.`,
+    html: `${logo}<p>Hi ${booking.customerName},</p><p>Your appointment has been cancelled:</p><ul><li><strong>Services:</strong> ${booking.services.join(", ")}</li><li><strong>When:</strong> ${when}</li></ul><p>If this wasn't expected or you'd like to rebook, just reply or book again at <a href="${appUrl}">${appUrl}</a>.</p>`,
+  });
+}
