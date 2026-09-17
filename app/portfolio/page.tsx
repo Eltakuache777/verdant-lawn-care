@@ -24,6 +24,9 @@ export default function PortfolioPage() {
   const [loading, setLoading] = useState(true);
 
   const items = selectedService ? allItems.filter((i) => i.service === selectedService) : [];
+  const photoItems = items.filter((i) => !isVideoUrl(i.mediaUrl));
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
   const countFor = (name: string) => allItems.filter((i) => i.service === name).length;
   // Prefer a real photo as the cover, but fall back to a real uploaded
   // video's first frame rather than the plain placeholder color once
@@ -58,6 +61,40 @@ export default function PortfolioPage() {
   useEffect(() => {
     loadItems();
   }, []);
+
+  useEffect(() => {
+    setLightboxIndex(null);
+  }, [selectedService]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setLightboxIndex(null);
+      if (e.key === "ArrowLeft") showPrevPhoto();
+      if (e.key === "ArrowRight") showNextPhoto();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightboxIndex, photoItems.length]);
+
+  function showPrevPhoto() {
+    setLightboxIndex((i) => (i === null ? i : (i - 1 + photoItems.length) % photoItems.length));
+  }
+  function showNextPhoto() {
+    setLightboxIndex((i) => (i === null ? i : (i + 1) % photoItems.length));
+  }
+  function onLightboxTouchStart(e: React.TouchEvent) {
+    touchStartXRef.current = e.touches[0].clientX;
+  }
+  function onLightboxTouchEnd(e: React.TouchEvent) {
+    if (touchStartXRef.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(deltaX) < 50) return;
+    if (deltaX < 0) showNextPhoto();
+    else showPrevPhoto();
+  }
 
   function loadItems() {
     setLoading(true);
@@ -309,13 +346,17 @@ export default function PortfolioPage() {
                   {isVideoUrl(item.mediaUrl) ? (
                     <video src={item.mediaUrl} controls style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }} />
                   ) : (
-                    <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer">
+                    <button
+                      type="button"
+                      onClick={() => setLightboxIndex(photoItems.findIndex((p) => p.id === item.id))}
+                      style={{ display: "block", width: "100%", padding: 0, background: "none", border: "none", cursor: "pointer" }}
+                    >
                       <img
                         src={item.mediaUrl}
                         alt={item.caption ?? item.service}
                         style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }}
                       />
-                    </a>
+                    </button>
                   )}
                   {item.caption && (
                     <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{item.caption}</p>
@@ -326,6 +367,123 @@ export default function PortfolioPage() {
           </>
         )}
       </div>
+
+      {lightboxIndex !== null && photoItems[lightboxIndex] && (
+        <div
+          onClick={() => setLightboxIndex(null)}
+          onTouchStart={onLightboxTouchStart}
+          onTouchEnd={onLightboxTouchEnd}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.92)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            touchAction: "pan-y",
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxIndex(null);
+            }}
+            aria-label="Close"
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.12)",
+              color: "#fff",
+              fontSize: 18,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ✕
+          </button>
+
+          {photoItems.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showPrevPhoto();
+                }}
+                aria-label="Previous photo"
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  fontSize: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showNextPhoto();
+                }}
+                aria-label="Next photo"
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  fontSize: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ›
+              </button>
+            </>
+          )}
+
+          <div style={{ maxWidth: "94vw", maxHeight: "88vh", display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <img
+              src={photoItems[lightboxIndex].mediaUrl}
+              alt={photoItems[lightboxIndex].caption ?? photoItems[lightboxIndex].service}
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: "94vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }}
+            />
+            {photoItems[lightboxIndex].caption && (
+              <p style={{ color: "#fff", marginTop: 10, fontSize: 13, textAlign: "center" }}>
+                {photoItems[lightboxIndex].caption}
+              </p>
+            )}
+            {photoItems.length > 1 && (
+              <p style={{ color: "rgba(255,255,255,0.6)", marginTop: 6, fontSize: 12 }}>
+                {lightboxIndex + 1} / {photoItems.length}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
