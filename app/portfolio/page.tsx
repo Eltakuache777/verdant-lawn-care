@@ -24,7 +24,7 @@ export default function PortfolioPage() {
   const [loading, setLoading] = useState(true);
 
   const items = selectedService ? allItems.filter((i) => i.service === selectedService) : [];
-  const photoItems = items.filter((i) => !isVideoUrl(i.mediaUrl));
+  const mediaItems = items;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const touchStartXRef = useRef<number | null>(null);
   const countFor = (name: string) => allItems.filter((i) => i.service === name).length;
@@ -76,13 +76,13 @@ export default function PortfolioPage() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lightboxIndex, photoItems.length]);
+  }, [lightboxIndex, mediaItems.length]);
 
   function showPrevPhoto() {
-    setLightboxIndex((i) => (i === null ? i : (i - 1 + photoItems.length) % photoItems.length));
+    setLightboxIndex((i) => (i === null ? i : (i - 1 + mediaItems.length) % mediaItems.length));
   }
   function showNextPhoto() {
-    setLightboxIndex((i) => (i === null ? i : (i + 1) % photoItems.length));
+    setLightboxIndex((i) => (i === null ? i : (i + 1) % mediaItems.length));
   }
   function onLightboxTouchStart(e: React.TouchEvent) {
     touchStartXRef.current = e.touches[0].clientX;
@@ -343,21 +343,46 @@ export default function PortfolioPage() {
                       ✕
                     </button>
                   )}
-                  {isVideoUrl(item.mediaUrl) ? (
-                    <video src={item.mediaUrl} controls style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }} />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setLightboxIndex(photoItems.findIndex((p) => p.id === item.id))}
-                      style={{ display: "block", width: "100%", padding: 0, background: "none", border: "none", cursor: "pointer" }}
-                    >
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(mediaItems.findIndex((p) => p.id === item.id))}
+                    style={{ display: "block", width: "100%", padding: 0, background: "none", border: "none", cursor: "pointer", position: "relative" }}
+                  >
+                    {isVideoUrl(item.mediaUrl) ? (
+                      <>
+                        <video
+                          src={item.mediaUrl}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onLoadedMetadata={(e) => {
+                            e.currentTarget.currentTime = 0.5;
+                          }}
+                          style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }}
+                        />
+                        <span
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 32,
+                            color: "#fff",
+                            textShadow: "0 1px 6px rgba(0,0,0,0.6)",
+                          }}
+                        >
+                          ▶
+                        </span>
+                      </>
+                    ) : (
                       <img
                         src={item.mediaUrl}
                         alt={item.caption ?? item.service}
                         style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }}
                       />
-                    </button>
-                  )}
+                    )}
+                  </button>
                   {item.caption && (
                     <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{item.caption}</p>
                   )}
@@ -368,7 +393,7 @@ export default function PortfolioPage() {
         )}
       </div>
 
-      {lightboxIndex !== null && photoItems[lightboxIndex] && (
+      {lightboxIndex !== null && mediaItems[lightboxIndex] && (
         <div
           onClick={() => setLightboxIndex(null)}
           onTouchStart={onLightboxTouchStart}
@@ -409,7 +434,7 @@ export default function PortfolioPage() {
             ✕
           </button>
 
-          {photoItems.length > 1 && (
+          {mediaItems.length > 1 && (
             <>
               <button
                 type="button"
@@ -417,7 +442,7 @@ export default function PortfolioPage() {
                   e.stopPropagation();
                   showPrevPhoto();
                 }}
-                aria-label="Previous photo"
+                aria-label="Previous"
                 style={{
                   position: "absolute",
                   left: 8,
@@ -442,7 +467,7 @@ export default function PortfolioPage() {
                   e.stopPropagation();
                   showNextPhoto();
                 }}
-                aria-label="Next photo"
+                aria-label="Next"
                 style={{
                   position: "absolute",
                   right: 8,
@@ -465,20 +490,32 @@ export default function PortfolioPage() {
           )}
 
           <div style={{ maxWidth: "94vw", maxHeight: "88vh", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <img
-              src={photoItems[lightboxIndex].mediaUrl}
-              alt={photoItems[lightboxIndex].caption ?? photoItems[lightboxIndex].service}
-              onClick={(e) => e.stopPropagation()}
-              style={{ maxWidth: "94vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }}
-            />
-            {photoItems[lightboxIndex].caption && (
+            {isVideoUrl(mediaItems[lightboxIndex].mediaUrl) ? (
+              <video
+                key={mediaItems[lightboxIndex].id}
+                src={mediaItems[lightboxIndex].mediaUrl}
+                controls
+                playsInline
+                autoPlay
+                onClick={(e) => e.stopPropagation()}
+                style={{ maxWidth: "94vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }}
+              />
+            ) : (
+              <img
+                src={mediaItems[lightboxIndex].mediaUrl}
+                alt={mediaItems[lightboxIndex].caption ?? mediaItems[lightboxIndex].service}
+                onClick={(e) => e.stopPropagation()}
+                style={{ maxWidth: "94vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }}
+              />
+            )}
+            {mediaItems[lightboxIndex].caption && (
               <p style={{ color: "#fff", marginTop: 10, fontSize: 13, textAlign: "center" }}>
-                {photoItems[lightboxIndex].caption}
+                {mediaItems[lightboxIndex].caption}
               </p>
             )}
-            {photoItems.length > 1 && (
+            {mediaItems.length > 1 && (
               <p style={{ color: "rgba(255,255,255,0.6)", marginTop: 6, fontSize: 12 }}>
-                {lightboxIndex + 1} / {photoItems.length}
+                {lightboxIndex + 1} / {mediaItems.length}
               </p>
             )}
           </div>
